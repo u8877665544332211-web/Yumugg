@@ -15,8 +15,6 @@ local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
-local SoundService = game:GetService("SoundService")
-local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local lp = LocalPlayer
 local Camera = Workspace.CurrentCamera or Workspace:WaitForChild("Camera")
@@ -95,6 +93,7 @@ local L555_61 = false
 local __lhiRNgvZ = 3 
 local a73b35c96 = nil
 
+-- Desync 위치/속도 버퍼
 local L389_46 = nil
 local L273_20 = nil
 local _10O0lO = nil
@@ -130,6 +129,7 @@ end
 
 local v71190 = function(on) end
 
+-- Remote Attack Engine
 task.spawn(function()
     pcall(function()
         local _3213x326 = LocalPlayer.PlayerScripts
@@ -217,6 +217,7 @@ local function find_closest_target()
     return v83548
 end
 
+-- Desync 위치 복구 핸들러
 local function restore_desync_position()
     local __BfgstqWnead = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not __BfgstqWnead or not L389_46 then return end
@@ -230,6 +231,7 @@ pcall(function() RunService:UnbindFromRenderStep("RestoreDesyncPerfect") end)
 pcall(function() RunService:BindToRenderStep("RestoreDesyncPerfect", 0, restore_desync_position) end)
 RunService.RenderStepped:Connect(restore_desync_position)
 
+-- Heartbeat Desync Teleport 루프
 RunService.Heartbeat:Connect(function()
     pcall(function()
         local __BfgstqWnead = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -237,6 +239,7 @@ RunService.Heartbeat:Connect(function()
 
         if L389_46 then restore_desync_position() end
 
+        -- Target Attack Teleport (Ragebot Desync)
         if L555_61 and _2631x704 and a73b35c96 and find_closest_target() then
             local _3921x508 = a73b35c96:FindFirstAncestorOfClass("Model") or a73b35c96.Parent
             local _456_638 = Players:GetPlayerFromCharacter(_3921x508)
@@ -251,6 +254,7 @@ RunService.Heartbeat:Connect(function()
             return
         end
 
+        -- Orbit Fly Desync
         if flyEnabled then
             L389_46 = __BfgstqWnead.CFrame
             L273_20 = __BfgstqWnead.AssemblyLinearVelocity
@@ -262,6 +266,7 @@ RunService.Heartbeat:Connect(function()
     end)
 end)
 
+-- 타겟 탐색 스레드
 task.spawn(function()
     while true do
         task.wait(0.01)
@@ -297,9 +302,12 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- Combat 탭 UI 구성
+-- Combat 탭 UI 구성 (최상단 반영)
 -- ==========================================
+
+-- 1. Aimbot 그룹박스 (Combat 탭 좌측 최상단)
 local AimbotGroup = Tabs.Combat:AddLeftGroupbox('Aimbot')
+
 AimbotGroup:AddToggle('AimbotEnable', {
     Text = 'Enable Aimbot',
     Default = false,
@@ -366,7 +374,10 @@ AimbotGroup:AddToggle('AimbotClosestPart', {
     end
 })
 
+
+-- 2. Silent Aim 그룹박스 (Combat 탭 우측 최상단)
 local SilentAimGroup = Tabs.Combat:AddRightGroupbox('Silent Aim')
+
 SilentAimGroup:AddToggle('SilentAimEnable', {
     Text = 'Enable Silent Aim',
     Default = false,
@@ -433,7 +444,10 @@ SilentAimGroup:AddToggle('SilentAimClosestPart', {
     end
 })
 
+
+-- 3. Ragebot 그룹박스 (Combat 탭 기존 항목)
 local RagebotGroup = Tabs.Combat:AddLeftGroupbox('Ragebot')
+
 RagebotGroup:AddToggle('RagebotEnabled', {
     Text = 'Enabled',
     Default = false,
@@ -490,8 +504,12 @@ RagebotGroup:AddSlider('RagebotAttack', {
 })
 
 -- ============================================================================
--- VISUALS MODULE & UI INTEGRATION
+-- VISUALS MODULE & UI INTEGRATION (COMPLETE EXTRACTED ENGINE)
 -- ============================================================================
+
+--------------------------------------------------------------------------------
+-- [1] Config Defaults Setup
+--------------------------------------------------------------------------------
 Config.Visuals = false
 Config.VisualsPreset = "Neutral"
 Config.VisualsPerformanceMode = false
@@ -501,8 +519,15 @@ Config.VisualsHolograms = false
 Config.VisualsRainbowMap = false
 Config.VisualsRainbowMapSpeed = 0.15
 Config.VisualsStretch = 1.0
+Config.VisualsStretchMin = 0.5
+Config.VisualsStretchMax = 1.2
 Config.VisualsCameraSway = false
 Config.VisualsCameraSwayAmount = 0.5
+Config.VisualsHologramDuration = 3.5
+Config.VisualsHologramRange = 300
+Config.VisualsHologramVisibility = 1.4
+Config.VisualsHologramColor  = Color3.fromRGB(0, 220, 255)
+Config.VisualsHologramAccent = Color3.fromRGB(255, 60, 200)
 Config.VisualsGrade = "Crisp"
 Config.VisualsGradeStrength = 0.6
 Config.VisualsBloom = false
@@ -514,11 +539,17 @@ Config.VisualsLetterboxSize = 0.10
 Config.VisualsDOF = false
 Config.VisualsDOFDistance = 28
 Config.VisualsDOFBlur = 0.5
+Config.VisualsHologramStyle = "Orb"
+Config.VisualsHologramLethal = true
+Config.VisualsHologramLethalColor = Color3.fromRGB(255, 200, 60)
 
+--------------------------------------------------------------------------------
+-- [2] Visuals Main Logic (Core Engine)
+--------------------------------------------------------------------------------
 local Visuals = {}
 ;(function()
     local _origLighting, _origClones = nil, {}
-    local _hologramFolder = nil
+    local _hologramFolder, _hologramCooldowns = nil, {}
     local _stretchBound, _rainbowConn = false, nil
     local _rainbowParts, _rainbowHue, _rainbowBatchIdx = {}, 0, 1
     local _perfBackup, _origParticleRates = nil, {}
@@ -843,6 +874,329 @@ local Visuals = {}
         reassertGrade()
         reassertBloom()
     end
+    local function getHoloFolder()
+        if _hologramFolder and _hologramFolder.Parent then return _hologramFolder end
+        local f = Instance.new("Folder"); f.Name = "_vs_holos"; f.Parent = Workspace
+        _hologramFolder = f; return f
+    end
+    local _GOLD = Color3.fromRGB(255, 200, 60)
+    local _EDGE    = Color3.fromRGB(155, 232, 255)
+    local _VISIBLE = Color3.fromRGB(41, 224, 255)
+    local function easeInOut(a) return a * a * (3 - 2 * a) end
+    local HOLO_SKEL_R15 = {
+        {"Head","UpperTorso"},{"UpperTorso","LowerTorso"},
+        {"UpperTorso","LeftUpperArm"},{"LeftUpperArm","LeftLowerArm"},{"LeftLowerArm","LeftHand"},
+        {"UpperTorso","RightUpperArm"},{"RightUpperArm","RightLowerArm"},{"RightLowerArm","RightHand"},
+        {"LowerTorso","LeftUpperLeg"},{"LeftUpperLeg","LeftLowerLeg"},{"LeftLowerLeg","LeftFoot"},
+        {"LowerTorso","RightUpperLeg"},{"RightUpperLeg","RightLowerLeg"},{"RightLowerLeg","RightFoot"},
+    }
+    local HOLO_SKEL_R6 = {
+        {"Head","Torso"},
+        {"Torso","Left Arm"},{"Torso","Right Arm"},
+        {"Torso","Left Leg"},{"Torso","Right Leg"},
+    }
+    local function fadePop(container, parts, hl, dur, tr0)
+        tr0 = tr0 or 0.55
+        local startT = tick()
+        local conn
+        conn = RunService.Heartbeat:Connect(function()
+            if not container.Parent then if conn then conn:Disconnect() end return end
+            local a  = math.clamp((tick() - startT) / dur, 0, 1)
+            local e  = easeInOut(a)
+            local tr = tr0 + (1 - tr0) * e
+            for _, b in ipairs(parts) do b.Transparency = tr end
+            if hl then hl.OutlineTransparency = e end
+            if a >= 1 and conn then conn:Disconnect() end
+        end)
+        Debris:AddItem(container, dur + 0.2)
+    end
+    local function popSkeleton(char, dur, color)
+        local vis = math.clamp(cfg("VisualsHologramVisibility", 1.4), 0.2, 2)
+        local tr0 = math.clamp(1 - 0.45 * vis, 0, 0.91)
+        local hum  = char:FindFirstChildOfClass("Humanoid")
+        local isR6 = (hum and hum.RigType == Enum.HumanoidRigType.R6) or (char:FindFirstChild("Torso") ~= nil)
+        local rig  = isR6 and HOLO_SKEL_R6 or HOLO_SKEL_R15
+        local model = Instance.new("Model")
+        model.Name = "_hs" .. math.random(10000, 99999)
+        local parts, n = {}, 0
+        for _, pair in ipairs(rig) do
+            local a, b = char:FindFirstChild(pair[1]), char:FindFirstChild(pair[2])
+            if a and b then
+                local ap, bp = a.Position, b.Position
+                local len = (bp - ap).Magnitude
+                if len > 0.05 and len < 20 then
+                    local bone = Instance.new("Part")
+                    bone.Shape = Enum.PartType.Cylinder
+                    bone.Size = Vector3.new(len, 0.1 + 0.06 * vis, 0.1 + 0.06 * vis)
+                    bone.Material = Enum.Material.Neon
+                    bone.Color = color
+                    bone.Transparency = tr0
+                    bone.Anchored = true; bone.CanCollide = false; bone.CanQuery = false
+                    bone.CanTouch = false; bone.CastShadow = false; bone.Massless = true
+                    bone:SetAttribute("VS_Holo", true)
+                    bone.CFrame = CFrame.lookAt((ap + bp) * 0.5, bp) * CFrame.Angles(0, math.rad(90), 0)
+                    bone.Parent = model
+                    n = n + 1; parts[n] = bone
+                end
+            end
+        end
+        if n == 0 then model:Destroy(); return end
+        model.Parent = getHoloFolder()
+        fadePop(model, parts, nil, dur, tr0)
+    end
+    local _wraiths = {}
+    local function wraithCount()
+        local n = 0
+        for i = #_wraiths, 1, -1 do
+            local m = _wraiths[i]
+            if m and m.Parent then n = n + 1 else table.remove(_wraiths, i) end
+        end
+        return n
+    end
+    local STRIP_CLASSES = {
+        "Humanoid","Sound","ParticleEmitter","Trail","Beam","Fire","Smoke","Sparkles",
+        "ForceField","Highlight","BillboardGui","SurfaceGui","BaseScript",
+    }
+    local function popWraith(char, dur, color)
+        if wraithCount() >= 4 then return end
+        local vis = math.clamp(cfg("VisualsHologramVisibility", 1.4), 0.2, 2)
+        local tr0 = math.clamp(1 - 0.45 * vis, 0, 0.91)
+        local clone
+        pcall(function()
+            local was = char.Archivable
+            char.Archivable = true
+            clone = char:Clone()
+            char.Archivable = was
+        end)
+        if not clone then return end
+        clone.Name = "_hw" .. math.random(10000, 99999)
+        local parts, n = {}, 0
+        for _, d in ipairs(clone:GetDescendants()) do
+            local strip = false
+            for _, cls in ipairs(STRIP_CLASSES) do
+                if d:IsA(cls) then strip = true break end
+            end
+            if strip then
+                pcall(function() d:Destroy() end)
+            elseif d:IsA("BasePart") then
+                d.Anchored = true; d.CanCollide = false; d.CanQuery = false
+                d.CanTouch = false; d.CastShadow = false; d.Massless = true
+                d:SetAttribute("VS_Holo", true)
+                if d.Transparency < 0.98 then
+                    d.Material = Enum.Material.ForceField
+                    d.Color = color
+                    d.Transparency = tr0
+                    n = n + 1; parts[n] = d
+                else
+                    d.Transparency = 1
+                end
+            end
+        end
+        if n == 0 then clone:Destroy(); return end
+        clone:SetAttribute("VS_Holo", true)
+        clone.Parent = getHoloFolder()
+        local hl
+        pcall(function()
+            local h = Instance.new("Highlight")
+            h.FillTransparency = 1
+            h.OutlineColor = _WHITE
+            h.OutlineTransparency = 0
+            h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            h.Adornee = clone
+            h.Parent = clone
+            hl = h
+        end)
+        table.insert(_wraiths, clone)
+        fadePop(clone, parts, hl, dur, tr0)
+    end
+    local function createHologram(character, lethal)
+        if not character or not character.Parent then return end
+        local rp = character:FindFirstChild("HitboxHead")
+            or character:FindFirstChild("Head")
+            or character:FindFirstChild("HumanoidRootPart")
+            or character:FindFirstChild("UpperTorso")
+        if not rp then return end
+        if (rp.Position - Camera.CFrame.Position).Magnitude > Config.VisualsHologramRange then return end
+        if #getHoloFolder():GetChildren() >= 16 then return end
+        local dur = math.clamp(Config.VisualsHologramDuration or 3.5, 0.25, 10)
+        local lethalOn  = lethal and cfg("VisualsHologramLethal", true)
+        local mainColor = lethalOn and cfg("VisualsHologramLethalColor", _GOLD) or Config.VisualsHologramColor
+        local style = cfg("VisualsHologramStyle", "Orb")
+        if Config.VisualsPerformanceMode and style == "Wraith" then style = "Orb" end
+        if style == "Skeleton" then popSkeleton(character, dur, mainColor); return end
+        if style == "Wraith"   then popWraith(character, dur, mainColor);   return end
+        local folder = getHoloFolder()
+        local function mkBall(size, transp, color)
+            local b = Instance.new("Part")
+            b.Shape = Enum.PartType.Ball
+            b.Size = Vector3.new(size, size, size)
+            b.Material = Enum.Material.Neon
+            b.Color = color
+            b.Transparency = transp
+            b.Anchored = true; b.CanCollide = false; b.CanQuery = false
+            b.CanTouch = false; b.CastShadow = false; b.Massless = true
+            b:SetAttribute("VS_Holo", true)
+            return b
+        end
+        local vis = math.clamp(cfg("VisualsHologramVisibility", 1.4), 0.2, 2)
+        local sc  = 0.75 + 0.25 * vis
+        local h0  = math.clamp(0.65 / vis, 0.1, 0.9)
+        local core = mkBall(0.7 * sc, 0.05, mainColor)
+        local halo = mkBall(1.7 * sc, h0, mainColor)
+        local startCF = CFrame.new(rp.Position)
+        core.CFrame = startCF; halo.CFrame = startCF
+        core.Name = "_h" .. math.random(10000, 99999); halo.Name = core.Name .. "_g"
+        core.Parent = folder; halo.Parent = folder
+        local shockColor = Config.VisualsHologramAccent or Config.VisualsHologramColor
+        local shock = mkBall(0.5, 0.15, shockColor)
+        shock.Shape = Enum.PartType.Cylinder
+        shock.Size  = Vector3.new(0.1, 0.5, 0.5)
+        do
+            local cam = workspace.CurrentCamera
+            if cam then shock.CFrame = CFrame.lookAt(rp.Position, cam.CFrame.Position) * CFrame.Angles(0, math.rad(90), 0)
+            else shock.CFrame = startCF * CFrame.Angles(0, 0, math.rad(90)) end
+        end
+        shock.Name = core.Name .. "_s"
+        shock.Parent = folder
+        local startT = tick()
+        local conn
+        conn = RunService.Heartbeat:Connect(function()
+            if not core.Parent then if conn then conn:Disconnect() end return end
+            local alpha = math.clamp((tick() - startT) / dur, 0, 1)
+            local rise  = 2.5 * (1 - (1 - alpha) * (1 - alpha))
+            local cf    = startCF + Vector3.new(0, rise, 0)
+            core.CFrame = cf; halo.CFrame = cf
+            core.Transparency = math.clamp(0.05 + 0.95 * alpha, 0, 1)
+            halo.Transparency = math.clamp(h0 + (1 - h0) * alpha, 0, 1)
+            if shock.Parent then
+                local sa = math.clamp((tick() - startT) / 0.3, 0, 1)
+                local se = 1 - (1 - sa) * (1 - sa)
+                local sd = 0.5 + 3.5 * se
+                shock.Size = Vector3.new(0.1, sd, sd)
+                shock.Transparency = math.clamp(0.15 + 0.85 * sa, 0, 1)
+            end
+            if alpha >= 1 and conn then conn:Disconnect() end
+        end)
+        Debris:AddItem(core, dur + 0.2)
+        Debris:AddItem(halo, dur + 0.2)
+        Debris:AddItem(shock, 0.5)
+    end
+
+    local applyCamFrame, clearCamFrame
+    ;(function()
+        local TweenService = game:GetService("TweenService")
+        local _camGui, _vgFrames, _lbTop, _lbBot, _dof = nil, nil, nil, nil, nil
+        local C_BLACK_FRAME = Color3.new(0, 0, 0)
+        local function ensureCamGui()
+            if _camGui and _camGui.Parent then return _camGui end
+            local g = Instance.new("ScreenGui")
+            g.Name = "_vs_cam"
+            g.IgnoreGuiInset = true; g.ResetOnSpawn = false
+            g.DisplayOrder = 990
+            local ok = pcall(function() g.Parent = (gethui and gethui()) or game:GetService("CoreGui") end)
+            if not ok or not g.Parent then
+                pcall(function() g.Parent = lp:FindFirstChildOfClass("PlayerGui") end)
+            end
+            _camGui = g
+            return g
+        end
+        local VG_SIDES = {
+            { size = UDim2.new(1, 0, 0.24, 0),  pos = UDim2.new(0, 0, 0, 0),     rot = 90  },
+            { size = UDim2.new(1, 0, 0.24, 0),  pos = UDim2.new(0, 0, 0.76, 0),  rot = 270 },
+            { size = UDim2.new(0.17, 0, 1, 0),  pos = UDim2.new(0, 0, 0, 0),     rot = 0   },
+            { size = UDim2.new(0.17, 0, 1, 0),  pos = UDim2.new(0.83, 0, 0, 0),  rot = 180 },
+        }
+        local function vgApply()
+            local on = Config.Visuals and cfg("VisualsVignette", false)
+            if not on then
+                if _vgFrames then
+                    for i = 1, #_vgFrames do _vgFrames[i].Visible = false end
+                end
+                return
+            end
+            if not _vgFrames then
+                local g = ensureCamGui()
+                _vgFrames = {}
+                for i = 1, #VG_SIDES do
+                    local s = VG_SIDES[i]
+                    local f = Instance.new("Frame")
+                    f.Name = "_cv" .. i
+                    f.BackgroundColor3 = C_BLACK_FRAME; f.BorderSizePixel = 0
+                    f.Size = s.size; f.Position = s.pos; f.Visible = false; f.ZIndex = 1
+                    local grad = Instance.new("UIGradient")
+                    grad.Rotation = s.rot
+                    grad.Transparency = NumberSequence.new(0, 1)
+                    grad.Parent = f
+                    f.Parent = g
+                    _vgFrames[i] = f
+                end
+            end
+            local tr = 1 - 0.85 * math.clamp(cfg("VisualsVignetteStrength", 0.6), 0, 1)
+            for i = 1, #_vgFrames do
+                local f = _vgFrames[i]
+                f.BackgroundTransparency = tr; f.Visible = true
+            end
+        end
+        local LB_TI = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local function lbApply(animate)
+            local on = Config.Visuals and cfg("VisualsLetterbox", false)
+            if not on and not _lbTop then return end
+            if not _lbTop then
+                local g = ensureCamGui()
+                for i = 1, 2 do
+                    local f = Instance.new("Frame")
+                    f.Name = "_clb" .. i
+                    f.BackgroundColor3 = C_BLACK_FRAME; f.BackgroundTransparency = 0
+                    f.BorderSizePixel = 0; f.ZIndex = 2
+                    f.Parent = g
+                    if i == 1 then _lbTop = f else _lbBot = f end
+                end
+                _lbTop.Position = UDim2.new(0, 0, -0.2, 0)
+                _lbBot.Position = UDim2.new(0, 0, 1, 0)
+            end
+            local sz = math.clamp(cfg("VisualsLetterboxSize", 0.10), 0.04, 0.18)
+            local topP = on and UDim2.new(0, 0, 0, 0)      or UDim2.new(0, 0, -sz - 0.02, 0)
+            local botP = on and UDim2.new(0, 0, 1 - sz, 0) or UDim2.new(0, 0, 1.02, 0)
+            _lbTop.Size = UDim2.new(1, 0, sz, 0); _lbBot.Size = UDim2.new(1, 0, sz, 0)
+            if animate then
+                pcall(function()
+                    TweenService:Create(_lbTop, LB_TI, { Position = topP }):Play()
+                    TweenService:Create(_lbBot, LB_TI, { Position = botP }):Play()
+                end)
+            else
+                _lbTop.Position = topP; _lbBot.Position = botP
+            end
+        end
+        local function dofApply()
+            local on = Config.Visuals and not Config.VisualsPerformanceMode and cfg("VisualsDOF", false)
+            if not on then
+                if _dof then pcall(function() _dof:Destroy() end); _dof = nil end
+                return
+            end
+            if not (_dof and _dof.Parent) then
+                local d = Instance.new("DepthOfFieldEffect")
+                d.Name = "_vs_dof"; d:SetAttribute("VS_DoF", true)
+                d.InFocusRadius = 22
+                d.Parent = Lighting
+                _dof = d
+            end
+            local blur = math.clamp(cfg("VisualsDOFBlur", 0.5), 0, 1)
+            pcall(function()
+                _dof.FocusDistance = math.clamp(cfg("VisualsDOFDistance", 28), 5, 100)
+                _dof.FarIntensity  = 0.75 * blur
+                _dof.NearIntensity = 0.5  * blur
+            end)
+        end
+        applyCamFrame = function(animate) vgApply(); lbApply(animate); dofApply() end
+        clearCamFrame = function()
+            if _camGui then pcall(function() _camGui:Destroy() end) end
+            _camGui, _vgFrames, _lbTop, _lbBot = nil, nil, nil, nil
+            if _dof then pcall(function() _dof:Destroy() end); _dof = nil end
+        end
+    end)()
+
+    local _fovSaved = nil
+    local _tpRP = nil
     local function bindStretch()
         if _stretchBound then return end
         _stretchBound = true
@@ -851,6 +1205,13 @@ local Visuals = {}
             local s = Config.VisualsStretch
             local doStretch = math.abs(s - 1.0) >= 0.001
             local doSway = Config.VisualsCameraSway
+            if Config.CameraFovOverride then
+                local want = math.clamp(Config.CameraFovAmount or 90, 40, 130)
+                if _fovSaved == nil then _fovSaved = Camera.FieldOfView end
+                if Camera.FieldOfView ~= want then Camera.FieldOfView = want end
+            elseif _fovSaved ~= nil then
+                Camera.FieldOfView = _fovSaved; _fovSaved = nil
+            end
             if not (doStretch or doSway) then return end
             local c = Camera.CFrame
             if doSway then
@@ -867,6 +1228,148 @@ local Visuals = {}
             Camera.CFrame = c
         end)
     end
+
+    local _spooferActive = false
+    local _spooferConns = {}
+    local _isSpoofing = {}
+    local _origText = {}
+    local function anySpoofOn()
+        return Config.SpooferNameEnabled or Config.SpooferLevelEnabled or Config.SpooferCasualWinsEnabled
+            or Config.SpooferRankedWinsEnabled or Config.SpooferRankedEloEnabled
+            or Config.SpooferWinPercentEnabled or Config.SpooferWinStreakEnabled
+            or Config.SpooferFavoriteMapEnabled
+    end
+    local function escPat(s) return (s:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")) end
+    local function escRep(s) return (s:gsub("%%", "%%%%")) end
+    local function belongsToLp(obj)
+        local node, depth = obj, 0
+        while node ~= nil and node ~= game and depth < 12 do
+            if node:IsA("BillboardGui") then
+                local anchor = node.Adornee or node.Parent
+                while anchor ~= nil and not anchor:IsA("Model") do anchor = anchor.Parent end
+                if anchor ~= nil then
+                    local plr = Players:GetPlayerFromCharacter(anchor)
+                    if plr ~= nil then return plr == lp end
+                end
+            elseif node:IsA("Model") then
+                local plr = Players:GetPlayerFromCharacter(node)
+                if plr ~= nil then return plr == lp end
+            end
+            local asId = tonumber(node.Name)
+            if asId ~= nil and Players:GetPlayerByUserId(asId) ~= nil then return asId == lp.UserId end
+            node = node.Parent; depth = depth + 1
+        end
+        return true
+    end
+    local ALLOWED_TEXT_NAMES = {
+        DisplayName = true, Username = true, Name = true, Handle = true, Nametag = true,
+        Title = true, TitleText = true, Value = true, Text = true, Label = true,
+        Wins = true, WinRate = true, Streak = true, WinStreak = true, ELO = true, Level = true,
+    }
+    local function applyTextSpoof(obj)
+        if not (obj and obj.Parent) then return end
+        if _isSpoofing[obj] then return end
+        local text = obj.Text
+        if not text or #text == 0 then return end
+        local newText = text
+        local changed = false
+        if Config.SpooferNameEnabled then
+            local fakeName = Config.SpooferName or "ProPlayer"
+            local fakeDisp = Config.SpooferDisplayName or fakeName
+            local realName = lp.Name
+            local realDisp = lp.DisplayName
+            if realDisp and #realDisp > 0 and newText:find(realDisp, 1, true) then
+                newText = newText:gsub(escPat(realDisp), escRep(fakeDisp))
+                changed = true
+            end
+            if realName and #realName > 0 and newText:find(realName, 1, true) then
+                newText = newText:gsub(escPat(realName), escRep(fakeName))
+                changed = true
+            end
+        end
+        local pn = obj.Parent and obj.Parent.Name or ""
+        local on = obj.Name
+        local isVal = (on == "Value" or on == "Text")
+        local is_level = (pn == "Level" or pn == "LevelContainer") and (isVal or on == "Level")
+        local is_wins = (on == "Wins" or pn == "Wins" or pn == "WinsContainer") and (isVal or on == "Wins")
+        local is_elo = (pn == "ELO" or pn == "RankedElo" or pn == "Rating" or pn == "Rank") and (isVal or on == "ELO")
+        local is_winrate = (on == "WinRate" or on == "win rate" or pn == "WinRate") and (isVal or on == "WinRate")
+        local is_streak = (pn == "Streak" or pn == "WinStreak" or pn == "StreakContainer" or on == "Streak" or on == "WinStreak")
+            and (isVal or on == "Streak" or on == "WinStreak")
+        if (is_level or is_wins or is_elo or is_winrate or is_streak) and belongsToLp(obj) then
+            local sVal = nil
+            if Config.SpooferLevelEnabled and is_level then sVal = tostring(Config.SpooferLevel or 100)
+            elseif Config.SpooferCasualWinsEnabled and is_wins then sVal = tostring(Config.SpooferCasualWins or 500)
+            elseif Config.SpooferRankedEloEnabled and is_elo then sVal = tostring(Config.SpooferRankedElo or 2400)
+            elseif Config.SpooferWinPercentEnabled and is_winrate then sVal = tostring(Config.SpooferWinPercent or 75) .. "%"
+            elseif Config.SpooferWinStreakEnabled and is_streak then sVal = tostring(Config.SpooferWinStreak or 25)
+            end
+            if sVal ~= nil and newText ~= sVal then newText = sVal; changed = true end
+        end
+        if changed and newText ~= text then
+            if _origText[obj] == nil then _origText[obj] = text end
+            _isSpoofing[obj] = true
+            pcall(function() obj.Text = newText end)
+            _isSpoofing[obj] = nil
+        end
+    end
+    local function registerTextObj(obj)
+        if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
+        if _spooferConns[obj] ~= nil then return end
+        local txt = nil
+        pcall(function() txt = obj.Text end)
+        local mine = type(txt) == "string" and #txt > 0
+            and ((#lp.Name > 0 and txt:find(lp.Name, 1, true) ~= nil)
+              or (#lp.DisplayName > 0 and txt:find(lp.DisplayName, 1, true) ~= nil))
+        if not ALLOWED_TEXT_NAMES[obj.Name] and not mine then return end
+        applyTextSpoof(obj)
+        _spooferConns[obj] = obj:GetPropertyChangedSignal("Text"):Connect(function() applyTextSpoof(obj) end)
+        obj.Destroying:Once(function()
+            local c = _spooferConns[obj]
+            if c ~= nil then pcall(function() c:Disconnect() end) end
+            _spooferConns[obj] = nil; _origText[obj] = nil; _isSpoofing[obj] = nil
+        end)
+    end
+    local function stopGuiNameSpoofer()
+        for k, c in pairs(_spooferConns) do
+            pcall(function() c:Disconnect() end)
+            _spooferConns[k] = nil
+        end
+        for obj, t in pairs(_origText) do
+            pcall(function()
+                if obj.Parent ~= nil then
+                    _isSpoofing[obj] = true; obj.Text = t; _isSpoofing[obj] = nil
+                end
+            end)
+            _origText[obj] = nil
+        end
+        _isSpoofing = {}
+        _spooferActive = false
+    end
+    local function startGuiNameSpoofer()
+        if _spooferActive or not anySpoofOn() then return end
+        _spooferActive = true
+        local pGui = lp:FindFirstChildOfClass("PlayerGui")
+        if pGui then
+            for _, inst in ipairs(pGui:GetDescendants()) do registerTextObj(inst) end
+            _spooferConns["pGuiDesc"] = pGui.DescendantAdded:Connect(registerTextObj)
+        end
+        pcall(function()
+            local cGui = (gethui and gethui()) or cloneref(game:GetService("CoreGui"))
+            if cGui then
+                for _, inst in ipairs(cGui:GetDescendants()) do registerTextObj(inst) end
+                _spooferConns["cGuiDesc"] = cGui.DescendantAdded:Connect(registerTextObj)
+            end
+        end)
+    end
+    local function refreshGuiNameSpoofer()
+        if not anySpoofOn() then stopGuiNameSpoofer(); return end
+        if not _spooferActive then startGuiNameSpoofer(); return end
+        for obj in pairs(_spooferConns) do
+            if typeof(obj) == "Instance" then pcall(applyTextSpoof, obj) end
+        end
+    end
+
     local function startRainbow()
         if _rainbowConn then return end
         _rainbowBatchIdx = 1; table.clear(_rainbowParts)
@@ -942,6 +1445,7 @@ local Visuals = {}
     function Visuals.togglePerf(on)
         Config.VisualsPerformanceMode = on
         if on then applyPerf() else disablePerf() end
+        applyCamFrame(false)
     end
     function Visuals.setPreset(name)
         if Presets[name] then
@@ -949,6 +1453,7 @@ local Visuals = {}
             applyPreset(name)
         end
     end
+    Visuals.PresetOrder = { "Neutral", "Clarity", "Cyberpunk", "Anime", "Sunset", "Vaporwave", "Toxic", "Void", "Sakura", "Nebula" }
     Visuals.GradeOrder = { "None", "Crisp", "Cold", "Warm", "Comp" }
     function Visuals.setGrade(name)
         Config.VisualsGrade = name
@@ -982,10 +1487,12 @@ local Visuals = {}
         if on then applyFogOverride()
         else applyPreset(State.VisualsCurrentPreset or Config.VisualsPreset or "Neutral") end
     end
+    Visuals.applyGuiNameSpoof = refreshGuiNameSpoofer
 
     function Visuals.init()
         snapshotLighting()
         if Config.Visuals then bindStretch() end
+        refreshGuiNameSpoofer()
     end
     function Visuals.enable()
         Config.Visuals = true; applyPreset(Config.VisualsPreset or "Neutral")
@@ -993,13 +1500,15 @@ local Visuals = {}
             applyFullbrightOverride(); applyFogOverride()
         end
         bindStretch()
+        refreshGuiNameSpoofer()
         if Config.VisualsRainbowMap then startRainbow() end
         if Config.VisualsPerformanceMode then applyPerf() end
         startReassert()
+        applyCamFrame(false)
     end
     function Visuals.disable()
         Config.Visuals = false; stopRainbow(); stopReassert()
-        clearGrade(); clearBloom()
+        clearGrade(); clearBloom(); clearCamFrame()
         if Config.VisualsPerformanceMode then disablePerf() end
         if _stretchBound then
             pcall(function() RunService:UnbindFromRenderStep("VS_Stretch") end)
@@ -1011,9 +1520,11 @@ end)()
 
 Visuals.init()
 
--- ==========================================
--- VISUALS TAB UI 구성
--- ==========================================
+--------------------------------------------------------------------------------
+-- [3] LinoriaLib UI Layout Structure for Visuals Tab
+--------------------------------------------------------------------------------
+
+-- ESP Section
 local ESPGroup = Tabs.Visuals:AddLeftGroupbox('ESP Elements')
 ESPGroup:AddToggle('ESPBox', { Text = 'Box ESP', Default = false })
 ESPGroup:AddToggle('ESPName', { Text = 'Name ESP', Default = false })
@@ -1023,8 +1534,9 @@ ESPGroup:AddToggle('ESPTracer', { Text = 'Tracer ESP', Default = false })
 ESPGroup:AddToggle('ESPSkeleton', { Text = 'Skeleton ESP', Default = false })
 ESPGroup:AddToggle('ESPChams', { Text = 'Chams ESP', Default = false })
 
-local _3323x151 = false
-local a41b78c88 = false
+-- Indicators Section
+local _3323x151 = false -- Ragebot Indicator 활성화 여부
+local a41b78c88 = false -- Ammo Indicator 활성화 여부
 
 local IndicatorGroup = Tabs.Visuals:AddLeftGroupbox('Indicators')
 IndicatorGroup:AddToggle('IndicatorRagebot', {
@@ -1038,7 +1550,9 @@ IndicatorGroup:AddToggle('IndicatorAmmo', {
     Callback = function(Value) a41b78c88 = Value end
 })
 
+-- Visual Master & Environment Group
 local MasterGroup = Tabs.Visuals:AddRightGroupbox('Environment & Lighting')
+
 MasterGroup:AddToggle('VisualsMasterToggle', {
     Text = 'Enable Custom Lighting',
     Default = false,
@@ -1046,40 +1560,48 @@ MasterGroup:AddToggle('VisualsMasterToggle', {
         if Value then Visuals.enable() else Visuals.disable() end
     end
 })
+
 MasterGroup:AddDropdown('VisualsPresetDropdown', {
     Values = Visuals.PresetOrder,
     Default = 1,
     Text = 'Lighting Preset',
     Callback = function(Value) Visuals.setPreset(Value) end
 })
+
 MasterGroup:AddToggle('VisualsFullbrightToggle', {
     Text = 'Fullbright',
     Default = false,
     Callback = function(Value) Visuals.toggleFullbright(Value) end
 })
+
 MasterGroup:AddToggle('VisualsNoFogToggle', {
     Text = 'No Fog',
     Default = false,
     Callback = function(Value) Visuals.toggleNoFog(Value) end
 })
+
 MasterGroup:AddToggle('VisualsRainbowMapToggle', {
     Text = 'Rainbow Map',
     Default = false,
     Callback = function(Value) Visuals.toggleRainbowMap(Value) end
 })
+
 MasterGroup:AddToggle('VisualsPerformanceToggle', {
     Text = 'Performance Mode',
     Default = false,
     Callback = function(Value) Visuals.togglePerf(Value) end
 })
 
+-- Shading & Post Processing Group
 local PostGroup = Tabs.Visuals:AddRightGroupbox('Post-Processing FX')
+
 PostGroup:AddDropdown('VisualsGradeDropdown', {
     Values = Visuals.GradeOrder,
     Default = 2,
     Text = 'Color Grade Filter',
     Callback = function(Value) Visuals.setGrade(Value) end
 })
+
 PostGroup:AddSlider('VisualsGradeStrengthSlider', {
     Text = 'Grade Strength',
     Default = 0.6,
@@ -1088,11 +1610,13 @@ PostGroup:AddSlider('VisualsGradeStrengthSlider', {
     Rounding = 2,
     Callback = function(Value) Visuals.setGradeStrength(Value) end
 })
+
 PostGroup:AddToggle('VisualsBloomToggle', {
     Text = 'Custom Bloom Effect',
     Default = false,
     Callback = function(Value) Visuals.setBloom(Value) end
 })
+
 PostGroup:AddSlider('VisualsBloomIntensitySlider', {
     Text = 'Bloom Intensity',
     Default = 1.0,
@@ -1102,7 +1626,9 @@ PostGroup:AddSlider('VisualsBloomIntensitySlider', {
     Callback = function(Value) Visuals.setBloomIntensity(Value) end
 })
 
+-- Camera & Stretch FX Group
 local CameraGroup = Tabs.Visuals:AddLeftGroupbox('Camera Effects')
+
 CameraGroup:AddSlider('VisualsStretchSlider', {
     Text = 'Resolution Stretch',
     Default = 1.0,
@@ -1113,13 +1639,55 @@ CameraGroup:AddSlider('VisualsStretchSlider', {
         Config.VisualsStretch = Value
     end
 })
+
 CameraGroup:AddToggle('VisualsSwayToggle', {
     Text = 'Motion Sway FX',
     Default = false,
     Callback = function(Value) Config.VisualsCameraSway = Value end
 })
 
+CameraGroup:AddToggle('CameraFovToggle', {
+    Text = 'FOV Override',
+    Default = false,
+    Callback = function(Value) Config.CameraFovOverride = Value end
+})
+
+CameraGroup:AddSlider('CameraFovSlider', {
+    Text = 'FOV Value',
+    Default = 90,
+    Min = 40,
+    Max = 130,
+    Rounding = 0,
+    Callback = function(Value) Config.CameraFovAmount = Value end
+})
+
+-- Name & Stat Spoofer Section
+local SpooferGroup = Tabs.Visuals:AddRightGroupbox('Profile Spoofer')
+
+SpooferGroup:AddToggle('SpooferNameToggle', {
+    Text = 'Spoof Display Name',
+    Default = false,
+    Callback = function(Value)
+        Config.SpooferNameEnabled = Value
+        Visuals.applyGuiNameSpoof()
+    end
+})
+
+SpooferGroup:AddInput('SpooferNameInput', {
+    Default = 'ProPlayer',
+    Numeric = false,
+    Finished = true,
+    Text = 'Fake Name',
+    Callback = function(Value)
+        Config.SpooferName = Value
+        Config.SpooferDisplayName = Value
+        Visuals.applyGuiNameSpoof()
+    end
+})
+
+-- Skybox Compatibility Section
 local SkyboxGroup = Tabs.Visuals:AddRightGroupbox('Legacy Skybox Presets')
+
 local function GetSky()
     local sky = Lighting:FindFirstChildOfClass("Sky")
     if not sky then
@@ -1128,20 +1696,24 @@ local function GetSky()
     end
     return sky
 end
+
 local SkyPresets = {
     ["Purple Nebula"] = "rbxassetid://159454299",
     ["Night Sky"] = "rbxassetid://12064107",
     ["Pink Sunset"] = "rbxassetid://271042310",
     ["Vaporwave"] = "rbxassetid://1417494402"
 }
+
 local function ApplySky(id)
     local sky = GetSky()
     sky.SkyboxBk, sky.SkyboxDn, sky.SkyboxFt, sky.SkyboxLf, sky.SkyboxRt, sky.SkyboxUp = id, id, id, id, id, id
 end
+
 local function RemoveSky()
     local sky = Lighting:FindFirstChildOfClass("Sky")
     if sky then sky:Destroy() end
 end
+
 SkyboxGroup:AddDropdown('SkyboxPresetDropdown', {
     Values = { 'Disable', 'Purple Nebula', 'Night Sky', 'Pink Sunset', 'Vaporwave' },
     Default = 1,
@@ -1152,518 +1724,159 @@ SkyboxGroup:AddDropdown('SkyboxPresetDropdown', {
 })
 
 -- ==========================================
--- Weather 기능 구현 및 Visuals 탭에 Weather 그룹박스 추가
+-- Screen GUI Indicators (화면 중앙 표시)
 -- ==========================================
-local Weather = {}
-;(function()
-    local function cfg(key, default)
-        local v = Config[key]
-        if v == nil then return default end
-        return v
-    end
-    local function iAmt()
-        return math.clamp(cfg("WeatherIntensity", 1), 0.15, 2)
-    end
-    local function iRate(I, kLo, kHi)
-        if I < 1 then return math.exp(kLo * (I - 1)) end
-        return math.exp(kHi * (I - 1))
-    end
-    local function evRate(key)
-        return math.clamp(cfg(key, 1), 0.25, 3)
-    end
-    local IR = {
-        Snow      = { lo = 1.75, hi = 0.85, acc = 0.45, sz = 0.08, alp = 0.35, gst = 0.30 },
-        Petals    = { lo = 1.75, hi = 0.85, acc = 0.40, sz = 0.08, alp = 0.30, gst = 0.30 },
-        Autumn    = { lo = 1.75, hi = 0.85, acc = 0.40, sz = 0.08, alp = 0.30, gst = 0.30 },
-        Mist      = { lo = 1.35, hi = 1.10, acc = 0.30, sz = 0.25, alp = 0.75, gst = 0.20 },
-        Ash       = { lo = 1.45, hi = 1.05, acc = 0.35, sz = 0.15, alp = 0.55, gst = 0.20 },
-        Sandstorm = { lo = 1.35, hi = 1.60, acc = 0.45, sz = 0.30, alp = 0.75, gst = 0.20 },
-        Embers    = { lo = 1.45, hi = 1.05, acc = 0.30, sz = 0.10, alp = 0.25, gst = 0.20 },
-        Fireflies = { lo = 1.45, hi = 1.00, acc = 0.10, sz = 0.08, alp = 0.20, gst = 0.15 },
-    }
-    local IR_DEF = { lo = 1.6, hi = 0.9, acc = 0.3, sz = 0.10, alp = 0.25, gst = 0.25 }
-    local SET_LO, SET_HI = 0.75, 0.45
-    local Vec   = Vector3.new
-    local WHITE = Color3.new(1, 1, 1)
-    local TX_SOFT  = "rbxasset://textures/particles/smoke_main.dds"
-    local TX_SPARK = "rbxasset://textures/particles/sparkles_main.dds"
-    local TX_FLAKE    = "rbxassetid://101749163393113"
-    local TX_SNOWSOFT = "rbxassetid://78582616787441"
-    local TX_PUFF     = "rbxassetid://77935321198144"
-    local TX_PETAL    = "rbxassetid://243344623"
-    local TX_LEAFA    = "rbxassetid://8590047664"
-    local TX_LEAFB    = "rbxassetid://5970677338"
-    local TX_LEAFC    = "rbxassetid://9239040931"
-    local TX_DUST     = "rbxassetid://341828512"
-    local _curType = nil
-    local Wind = { x = 0, z = 0 }
-    ;(function()
-        local baseAng = math.random() * 6.283
-        local gustT0, gustDur, gustAmp = 0, 1, 0
-        local nextGustT = math.huge
-        local cbs = {}
-        function Wind.onGust(fn) cbs[#cbs + 1] = fn end
-        function Wind.reset(now)
-            nextGustT = now + 8 + math.random() * 17
-            gustT0, gustAmp = 0, 0
-            Wind.x, Wind.z = 0, 0
+local _9376x428 = Instance.new("ScreenGui")
+_9376x428.Name = "HalmuIndicators"
+_9376x428.ResetOnSpawn = false
+_9376x428.IgnoreGuiInset = true
+_9376x428.DisplayOrder = 999
+_9376x428.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+pcall(function()
+    _9376x428.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+end)
+if not _9376x428.Parent then
+    _9376x428.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+local _993_318 = Instance.new("TextLabel")
+_993_318.Name = "RagebotIndicator"
+_993_318.BackgroundTransparency = 1
+_993_318.Size = UDim2.new(0, 420, 0, 22)
+_993_318.AnchorPoint = Vector2.new(0.5, 0)
+_993_318.Position = UDim2.new(0.5, 0, 0.5, 36)
+_993_318.Font = Enum.Font.Code
+_993_318.TextSize = 14
+_993_318.TextColor3 = Color3.fromRGB(245, 245, 245)
+_993_318.TextStrokeTransparency = 0
+_993_318.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+_993_318.Text = ""
+_993_318.Visible = false
+_993_318.Parent = _9376x428
+
+local _0011Il00 = Instance.new("TextLabel")
+_0011Il00.Name = "AmmoIndicator"
+_0011Il00.BackgroundTransparency = 1
+_0011Il00.Size = UDim2.new(0, 420, 0, 18)
+_0011Il00.AnchorPoint = Vector2.new(0.5, 0)
+_0011Il00.Position = UDim2.new(0.5, 0, 0.5, 52)
+_0011Il00.Font = Enum.Font.Code
+_0011Il00.TextSize = 11
+_0011Il00.TextColor3 = Color3.fromRGB(245, 245, 245)
+_0011Il00.TextStrokeTransparency = 0
+_0011Il00.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+_0011Il00.Text = ""
+_0011Il00.Visible = false
+_0011Il00.Parent = _9376x428
+
+local function get_local_ammo_status()
+    local v43335, _0xfd96, L505_10 = nil, nil, false
+    pcall(function()
+        local _3213x326 = LocalPlayer.PlayerScripts
+        local _0x9ec3, _0lO010OIIO = pcall(require, _3213x326.Controllers.FighterController)
+        if not _0x9ec3 or not _0lO010OIIO then return end
+        local _0x3584 = _0lO010OIIO.LocalFighter
+        if not _0x3584 then return end
+        local _549_282 = _0x3584.EquippedItem
+        if not _549_282 then return end
+
+        local function get_property(key)
+            local L704_40, L619_44 = pcall(function()
+                if _549_282.Get then return _549_282:Get(key) end
+                return _549_282[key] or (_549_282.Data and _549_282.Data[key]) or (_549_282.Info and _549_282.Info[key])
+            end)
+            if L704_40 then return L619_44 end
+            return nil
         end
-        function Wind.update(now)
-            if now >= nextGustT then
-                gustT0 = now
-                gustDur = 2 + math.random() * 2
-                gustAmp = 1 + math.random()
-                nextGustT = now + 8 + math.random() * 17
-                for i = 1, #cbs do pcall(cbs[i], gustDur, 1 + gustAmp) end
+
+        v43335 = get_property("CurrentAmmo") or get_property("Ammo") or get_property("Bullets") or get_property("MagazineAmmo")
+        _0xfd96 = get_property("ReserveAmmo") or get_property("StoredAmmo") or get_property("Reserve") or get_property("TotalAmmo") or get_property("MaxAmmo") or get_property("MaxBullets")
+        local L616_26 = get_property("Reloading") or get_property("IsReloading") or get_property("Reload")
+        L505_10 = L616_26 == true
+
+        if _549_282.Info and type(_549_282.Info) == "table" then
+            if v43335 == nil then v43335 = _549_282.Info.CurrentAmmo or _549_282.Info.Ammo end
+            if _0xfd96 == nil then _0xfd96 = _549_282.Info.ReserveAmmo or _549_282.Info.StoredAmmo or _549_282.Info.MaxAmmo end
+            if _549_282.Info.Reloading == true or _549_282.Info.IsReloading == true then
+                L505_10 = true
             end
-            local ang = baseAng + 0.6 * math.sin(now * 0.013) + 0.9 * math.sin(now * 0.031 + 2.6)
-            local str = 1 + 0.35 * math.sin(now * 0.17) + 0.22 * math.sin(now * 0.41 + 1.3) + 0.15 * math.sin(now * 0.07 + 4.1)
-            local ga = (now - gustT0) / gustDur
-            if gustAmp > 0 and ga < 1 then str = str * (1 + gustAmp * math.sin(ga * math.pi)) end
-            Wind.x = math.cos(ang) * str
-            Wind.z = math.sin(ang) * str
         end
-    end)()
-    local _folder = nil
-    local function getFolder()
-        if _folder and _folder.Parent then return _folder end
-        local f = Instance.new("Folder"); f.Name = "_wx"; f:SetAttribute("WX_Custom", true)
-        f.Parent = Workspace; _folder = f; return f
+    end)
+    return v43335, _0xfd96, L505_10
+end
+
+RunService.RenderStepped:Connect(function()
+    if _3323x151 and L555_61 then
+        local _00IO01 = "idk"
+        if a73b35c96 and a73b35c96.Parent then
+            local _0xb7aa = a73b35c96:FindFirstAncestorOfClass("Model") or a73b35c96.Parent
+            local __bdUacYjXOqr = Players:GetPlayerFromCharacter(_0xb7aa)
+            if __bdUacYjXOqr then
+                _00IO01 = __bdUacYjXOqr.DisplayName or __bdUacYjXOqr.Name
+            elseif typeof(_0xb7aa) == "Instance" then
+                _00IO01 = _0xb7aa.Name
+            end
+        end
+        _993_318.Text = "ragebot : " .. tostring(_00IO01) .. "..."
+        _993_318.Position = UDim2.new(0.5, 0, 0.5, 36)
+        _993_318.Visible = true
+    else
+        _993_318.Visible = false
     end
-    local _rain = { drops = {}, conn = nil, folder = nil, dir = nil, applied = nil }
-    local RAIN_DIR = Vec(-0.16, -1, 0.05).Unit
-    local RAIN_LEAN_K, RAIN_LEAN_MAX = 0.12, 0.2126
-    local RAIN_RADIUS, RAIN_TOP, RAIN_BOT, RAIN_MAX = 70, 70, -28, 420
-    local function rainFolder()
-        if _rain.folder and _rain.folder.Parent then return _rain.folder end
-        local f = Instance.new("Folder"); f.Name = "_wxRain"; f:SetAttribute("WX_Custom", true)
-        f.Parent = getFolder(); _rain.folder = f; return f
-    end
-    local function makeDrop(parent, streakLen, width, color, glow, transp)
-        local part = Instance.new("Part")
-        part.Anchored = true; part.CanCollide = false; part.CanQuery = false; part.CanTouch = false
-        part.CastShadow = false; part.Massless = true; part.Transparency = 1; part.Size = Vec(0.05,0.05,0.05)
-        part:SetAttribute("WX_Custom", true)
-        local a0 = Instance.new("Attachment"); a0.Parent = part
-        local a1 = Instance.new("Attachment"); a1.Position = _rain.dir * streakLen; a1.Parent = part
-        local beam = Instance.new("Beam")
-        beam.Attachment0 = a0; beam.Attachment1 = a1
-        beam.Segments = 1; beam.FaceCamera = true
-        beam.Width0 = width; beam.Width1 = width * 0.55
-        beam.LightEmission = glow and 1 or 0.35
-        beam.LightInfluence = 0
-        beam.Color = ColorSequence.new(color)
-        beam.Transparency = NumberSequence.new(transp)
-        beam.Parent = part
-        part.Parent = parent
-        return part, a1, beam
-    end
-    local function seedDrop(d, camPos)
-        local ang = math.random() * math.pi * 2
-        local rad = math.sqrt(math.random()) * RAIN_RADIUS
-        local y   = camPos.Y + RAIN_TOP - math.random() * (RAIN_TOP - RAIN_BOT)
-        d.pos = Vec(camPos.X + math.cos(ang) * rad, y, camPos.Z + math.sin(ang) * rad)
-    end
-    local function newDrop(folder, i, camPos)
-        local base, width, color, transp, spd0
-        if (i % 3) ~= 0 then
-            base, width, transp = 5 + math.random() * 3, 0.10, 0.22
-            spd0 = 150 + math.random() * 30; color = Color3.fromRGB(180, 202, 232)
+
+    if a41b78c88 then
+        local v43335, _0xfd96, L505_10 = get_local_ammo_status()
+        local __UGHeELfMSX
+        if L505_10 or (typeof(v43335) == "number" and v43335 <= 0 and (_0xfd96 == nil or (typeof(_0xfd96) == "number" and _0xfd96 >= 0))) then
+            if L505_10 then
+                __UGHeELfMSX = "reloading"
+            elseif typeof(v43335) == "number" and typeof(_0xfd96) == "number" then
+                __UGHeELfMSX = string.format("%d/%d", _0xfd96, v43335)
+            else
+                __UGHeELfMSX = "reloading"
+            end
+        end
+        
+        if not __UGHeELfMSX then
+            if typeof(v43335) == "number" and typeof(_0xfd96) == "number" then
+                __UGHeELfMSX = string.format("%d/%d", _0xfd96, v43335)
+            elseif typeof(v43335) == "number" then
+                __UGHeELfMSX = tostring(v43335)
+            else
+                __UGHeELfMSX = nil
+            end
+        end
+
+        if L505_10 then
+            __UGHeELfMSX = "reloading"
+        end
+
+        if __UGHeELfMSX then
+            _0011Il00.Text = __UGHeELfMSX
+            local v75310 = 52
+            if _3323x151 and L555_61 then
+                v75310 = 52
+            end
+            _0011Il00.Position = UDim2.new(0.5, 0, 0.5, v75310)
+            _0011Il00.Visible = true
         else
-            base, width, transp = 3 + math.random() * 2, 0.06, 0.55
-            spd0 = 120 + math.random() * 30; color = Color3.fromRGB(158, 182, 214)
+            _0011Il00.Visible = false
         end
-        local part, a1, beam = makeDrop(folder, base, width, color, false, transp)
-        local d = { part = part, a1 = a1, beam = beam, base = base, len = base, w0 = width, t0 = transp, spd0 = spd0, spd = spd0 }
-        seedDrop(d, camPos)
-        part.CFrame = CFrame.new(d.pos)
-        return d
+    else
+        _0011Il00.Visible = false
     end
-    local function tuneRain()
-        local folder = rainFolder()
-        local I = iAmt()
-        local n = math.clamp(math.floor(150 * iRate(I, 1.75, 0.85)), 16, RAIN_MAX)
-        local drops = _rain.drops
-        local camPos = Camera and Camera.CFrame.Position or Vec(0,0,0)
-        for i = #drops, n + 1, -1 do drops[i].part:Destroy(); drops[i] = nil end
-        for i = #drops + 1, n do drops[i] = newDrop(folder, i, camPos) end
-    end
-    local function startRain()
-        if _rain.conn then return end
-        _rain.conn = RunService.Heartbeat:Connect(function(dt)
-            if not Config.Weather or _curType ~= "Rain" then return end
-            local cam = Camera; if not cam then return end
-            local camPos = cam.CFrame.Position
-            local lx, lz = Wind.x * RAIN_LEAN_K, Wind.z * RAIN_LEAN_K
-            local lm = math.sqrt(lx * lx + lz * lz)
-            if lm > RAIN_LEAN_MAX then local s = RAIN_LEAN_MAX / lm; lx, lz = lx * s, lz * s end
-            local step = _rain.dir:Lerp(Vec(lx, -1, lz).Unit, math.min(dt * 2, 1)).Unit
-            _rain.dir = step
-            if (step - _rain.applied).Magnitude > 0.015 then
-                _rain.applied = step
-                for i = 1, #_rain.drops do _rain.drops[i].a1.Position = step * _rain.drops[i].len end
-            end
-            local r2 = RAIN_RADIUS * RAIN_RADIUS
-            for i = 1, #_rain.drops do
-                local d = _rain.drops[i]
-                local p = d.pos + step * (d.spd * dt)
-                local relX, relY, relZ = p.X - camPos.X, p.Y - camPos.Y, p.Z - camPos.Z
-                if relY < RAIN_BOT or (relX * relX + relZ * relZ) > r2 then seedDrop(d, camPos); p = d.pos end
-                d.pos = p
-                if d.part then d.part.CFrame = CFrame.new(p) end
-            end
-        end)
-    end
-    local function stopRain()
-        if _rain.conn then _rain.conn:Disconnect(); _rain.conn = nil end
-        if _rain.folder then pcall(function() _rain.folder:Destroy() end); _rain.folder = nil end
-        table.clear(_rain.drops); _rain.dir = nil; _rain.applied = nil
-    end
-
-    local ND = Enum.NormalId
-    local function flutterSeq(lo, hi, n, env, flip)
-        local kps = table.create(n + 1)
-        for i = 0, n do
-            local v = lo; if (i + flip) % 2 == 1 then v = hi end
-            kps[i + 1] = NumberSequenceKeypoint.new(i / n, v, env)
-        end
-        return NumberSequence.new(kps)
-    end
-
-    local PRESETS = {
-        Snow = {
-            { size=Vec(22,4,22), oy=5, tex=TX_FLAKE, color=WHITE, skeys={{0,1.7,0.35},{1,1.35,0.3}}, squash=-0.12, transp0=0.18,transp1=0.55, rate=0.7, speed={0.8,1.6}, life={5,7}, spread=28, rot={-60,60}, rotSpd=26, accel=Vec(0,-2.4,0), drag=2.2, glow=0.2, dir=ND.Bottom, gust={ax=1.8,az=1.2,wx=0.4,wz=0.31,ph=0.5} },
-            { size=Vec(140,4,140), oy=20, tex=TX_FLAKE, color=Color3.fromRGB(242,248,255), skeys={{0,0.5,0.2},{1,0.38,0.14}}, squash=-0.08, transp0=0.08,transp1=0.5, rate=190, speed={2,4}, life={7,10}, spread=50, rot={-180,180}, rotSpd=42, accel=Vec(0,-5,0), drag=1.7, glow=0.35, dir=ND.Bottom, gust={ax=2.2,az=1.4,wx=0.33,wz=0.26,ph=1.9} },
-        },
-        Mist = {
-            { size=Vec(150,8,150), oy=0, tex=TX_SOFT, color=Color3.fromRGB(210,216,226), size0=26,size1=44, transp0=0.68,transp1=0.94, rate=16, speed={0.8,2.2}, life={9,13}, spread=20, rot={-5,5}, rotSpd=3, accel=Vec(2.2,0.25,1.2), drag=0.8, dir=ND.Top },
-        },
-        Embers = {
-            { size=Vec(90,28,90), oy=2, tex=TX_SOFT, color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,170,60)),ColorSequenceKeypoint.new(1,Color3.fromRGB(165,35,12))}), size0=0.85,size1=0.3, transp0=0.05,transp1=0.85, rate=80, speed={3,7}, life={3,5}, spread=40, rot={-60,60}, rotSpd=90, accel=Vec(1.5,9,1), drag=1.6, glow=0.35, dir=ND.Top },
-        },
-        Fireflies = {
-            { size=Vec(70,8,70), oy=-2, tex=TX_SNOWSOFT, color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(220,255,130)),ColorSequenceKeypoint.new(1,Color3.fromRGB(255,200,80))}), skeys={{0,0.1},{0.08,0.62,0.15},{1,0.08}}, tkeys={{0,1},{0.08,0.08},{1,1}}, rate=18, speed={0.5,1.6}, life={2.5,4}, spread=180, rot={0,0}, rotSpd=0, accel=Vec(0,0.3,0), drag=2.5, glow=0.95, dir=ND.Top },
-        },
-        Petals = {
-            { size=Vec(64,12,64), oy=5, tex=TX_PETAL, color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,222,234)),ColorSequenceKeypoint.new(1,Color3.fromRGB(226,132,176))}), skeys={{0,2.05,0.5},{1,1.7,0.35}}, qseq=flutterSeq(-0.88, 0.08, 14, 0.12, 0), transp0=0.1,transp1=0.38, rate=13, speed={0.6,1.4}, life={6,8}, spread=35, rot={-180,180}, rotSpd=95, accel=Vec(0,-3.5,0), drag=1.6, glow=0.08, dir=ND.Bottom, gust={ax=2.6,az=1.8,wx=0.4,wz=0.31,ph=0.5} },
-        },
-        Autumn = {
-            { size=Vec(20,6,20), oy=13, uw=8, tex=TX_LEAFA, color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(226,190,128)),ColorSequenceKeypoint.new(1,Color3.fromRGB(190,132,62))}), skeys={{0,0.62,0.14},{1,0.54,0.10}}, qseq=flutterSeq(-0.60, 0.14, 13, 0.10, 0), transp0=0.08,transp1=0.42, rate=14, speed={0.6,1.6}, life={7,9}, spread=34, rot={-180,180}, rotSpd=130, accel=Vec(0,-5,0), drag=1.5, glow=0.62, dir=ND.Bottom, gust={ax=3.4,az=2.2,wx=0.41,wz=0.3,ph=0.5} },
-        },
-        Ash = {
-            { size=Vec(110,4,110), oy=16, tex=TX_SOFT, color=Color3.fromRGB(96,90,86), size0=0.4,size1=0.3, transp0=0.05,transp1=0.5, rate=140, speed={2,4}, life={6,9}, spread=45, rot={-60,60}, rotSpd=45, accel=Vec(-3.5,-5,2), drag=1.6, glow=0, dir=ND.Bottom },
-        },
-        Sandstorm = {
-            { size=Vec(160,20,160), oy=6, tex=TX_SOFT, color=Color3.fromRGB(194,168,120), size0=24,size1=38, transp0=0.58,transp1=0.93, rate=24, speed={8,15}, life={5,8}, spread=28, rot={-8,8}, rotSpd=6, accel=Vec(20,0.5,7), drag=0.6, dir=ND.Right },
-        },
-    }
-    Weather.TypeOrder = { "Rain", "Snow", "Mist", "Embers", "Fireflies", "Petals", "Autumn", "Ash", "Sandstorm" }
-
-    local MOOD = {
-        Rain      = { B=-0.03, C=0.08,  S=-0.12, tint=Color3.fromRGB(205,220,255) },
-        Snow      = { B= 0.03, C=0.05,  S=-0.08, tint=Color3.fromRGB(226,240,255) },
-        Mist      = { B=-0.01, C=-0.05, S=-0.20, tint=Color3.fromRGB(220,224,230) },
-        Embers    = { B= 0.02, C=0.08,  S= 0.10, tint=Color3.fromRGB(255,238,220) },
-        Fireflies = { B=-0.04, C=0.06,  S= 0.02, tint=Color3.fromRGB(238,228,205) },
-        Petals    = { B= 0.00, C=0.09,  S= 0.05, tint=Color3.fromRGB(255,234,234) },
-        Autumn    = { B= 0.005, C=0.08, S= 0.04, tint=Color3.fromRGB(253,244,232) },
-        Ash       = { B=-0.04, C=0.06,  S=-0.25, tint=Color3.fromRGB(225,220,215) },
-        Sandstorm = { B=-0.02, C=0.10,  S= 0.05, tint=Color3.fromRGB(224,196,150) },
-    }
-    local SOUND = { Rain="rbxassetid://9114223173", Snow="rbxassetid://9114223173" }
-    local _partLayers = {}
-    local _ambient = nil
-    local _moodCC = nil
-    local _moodTween = nil
-    local FADE_TI = TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-    local MOOD_TI = TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-    local _followConn = nil
-
-    local function clearPartLayers()
-        for _, L in ipairs(_partLayers) do
-            if L.rateTween then L.rateTween:Cancel() end
-            if L.host then pcall(function() L.host:Destroy() end) end
-        end
-        table.clear(_partLayers)
-    end
-    local _fadeLayers = {}
-    local _fadeToken = 0
-    local function killFade()
-        _fadeToken = _fadeToken + 1
-        for _, F in ipairs(_fadeLayers) do pcall(function() F.host:Destroy() end) end
-        table.clear(_fadeLayers)
-    end
-    local function beginLayerFade()
-        killFade()
-        local maxLife = 0
-        for _, L in ipairs(_partLayers) do
-            if L.rateTween then L.rateTween:Cancel() end
-            if L.emitter then TweenService:Create(L.emitter, FADE_TI, { Rate = 0 }):Play() end
-            if L.life2 > maxLife then maxLife = L.life2 end
-            table.insert(_fadeLayers, { host = L.host, oy = L.oy })
-        end
-        table.clear(_partLayers)
-    end
-    local function layerRate(L, I)
-        return L.spec.rate * iRate(I, L.ir.lo, L.ir.hi)
-    end
-    local function tuneLayer(L, I)
-        local spec, R, e = L.spec, L.ir, L.emitter
-        local am = 1 - R.acc + R.acc * I
-        L.accel = spec.accel * am
-        e.Acceleration = L.accel
-        e.Speed = NumberRange.new(spec.speed[1] * am, spec.speed[2] * am)
-    end
-    local function mkPartLayer(spec, ir, rampIn)
-        local host = Instance.new("Part")
-        host.Name = "_wxHost"; host.Anchored = true; host.CanCollide = false; host.CanQuery = false
-        host.CanTouch = false; host.CastShadow = false; host.Transparency = 1; host.Massless = true
-        host.Size = spec.size; host:SetAttribute("WX_Custom", true)
-        host.Parent = getFolder()
-        local e = Instance.new("ParticleEmitter")
-        e:SetAttribute("WX_Custom", true)
-        e.Texture = spec.tex
-        e.Color = ColorSequence.new(spec.color)
-        e.LightEmission = spec.glow or 0
-        e.LightInfluence = 1 - math.min(spec.glow or 0, 1)
-        e.Lifetime = NumberRange.new(spec.life[1], spec.life[2])
-        e.SpreadAngle = Vector2.new(spec.spread, spec.spread)
-        e.Rotation = NumberRange.new(spec.rot and spec.rot[1] or 0, spec.rot and spec.rot[2] or 360)
-        e.RotSpeed = NumberRange.new(-(spec.rotSpd or 45), spec.rotSpd or 45)
-        e.Squash = NumberSequence.new(spec.squash or 0)
-        e.Drag = spec.drag or 0
-        e.EmissionDirection = spec.dir
-        e.Parent = host
-        local L = { host = host, oy = spec.oy, emitter = e, spec = spec, ir = ir, accel = spec.accel, life2 = spec.life[2], rateTween = nil }
-        local I = iAmt()
-        tuneLayer(L, I)
-        local targetRate = layerRate(L, I)
-        if rampIn then
-            e.Rate = 0
-            L.rateTween = TweenService:Create(e, FADE_TI, { Rate = targetRate })
-            L.rateTween:Play()
-        else
-            e.Rate = targetRate
-        end
-        table.insert(_partLayers, L)
-    end
-    local function clearMood()
-        if _moodTween then _moodTween:Cancel(); _moodTween = nil end
-        if _moodCC then pcall(function() _moodCC:Destroy() end); _moodCC = nil end
-    end
-    local function applyMood(name)
-        if not cfg("WeatherMood", true) then clearMood(); return end
-        local m = MOOD[name]; if not m then clearMood(); return end
-        if _moodTween then _moodTween:Cancel(); _moodTween = nil end
-        local g = 0.6 + 0.4 * iAmt()
-        local cc = _moodCC
-        if cc and cc.Parent then
-            _moodTween = TweenService:Create(cc, MOOD_TI, { Brightness = m.B * g, Contrast = m.C * g, Saturation = m.S * g, TintColor = m.tint })
-            _moodTween:Play()
-            return
-        end
-        cc = Instance.new("ColorCorrectionEffect")
-        cc.Name = "_wxMood"; cc:SetAttribute("WX_Custom", true)
-        cc.Brightness = m.B * g; cc.Contrast = m.C * g; cc.Saturation = m.S * g; cc.TintColor = m.tint
-        cc.Parent = Lighting; _moodCC = cc
-    end
-    local function startAmbient(id)
-        if _ambient then pcall(function() _ambient:Destroy() end); _ambient = nil end
-        if not id or id == "" then return end
-        local s = Instance.new("Sound")
-        s.Name = "_wxAmb"; s:SetAttribute("WX_Custom", true)
-        s.SoundId = id; s.Looped = true; s.Volume = cfg("WeatherSoundVolume", 0.35)
-        s.Parent = SoundService
-        pcall(function() s:Play() end)
-        _ambient = s
-    end
-    local function startFollow()
-        if _followConn then return end
-        local now0 = tick(); Wind.reset(now0)
-        _followConn = RunService.Heartbeat:Connect(function()
-            if not Config.Weather then return end
-            local now = tick(); Wind.update(now)
-            if _ambient then
-                local vol = cfg("WeatherSoundVolume", 0.35)
-                if _ambient.Volume ~= vol then _ambient.Volume = vol end
-            end
-            local cam = Camera; if not cam then return end
-            local pos = cam.CFrame.Position
-            for _, L in ipairs(_partLayers) do
-                if L.host and L.host.Parent then L.host.CFrame = CFrame.new(pos.X, pos.Y + L.oy, pos.Z) end
-            end
-            for _, F in ipairs(_fadeLayers) do
-                if F.host and F.host.Parent then F.host.CFrame = CFrame.new(pos.X, pos.Y + F.oy, pos.Z) end
-            end
-        end)
-    end
-    local function stopFollow()
-        if _followConn then _followConn:Disconnect(); _followConn = nil end
-    end
-    local function normType(name)
-        if PRESETS[name] or name == "Rain" then return name end
-        return "Rain"
-    end
-    local function applyType(name)
-        name = normType(name)
-        local prev = _curType
-        stopRain()
-        if #_partLayers > 0 then beginLayerFade() end
-        _curType = name
-        if name == "Rain" then buildRain(); startRain()
-        else
-            local ramp = PRESETS[prev] ~= nil
-            local ir = IR[name] or IR_DEF
-            if PRESETS[name] then
-                for _, spec in ipairs(PRESETS[name]) do mkPartLayer(spec, ir, ramp) end
-            end
-        end
-        applyMood(name)
-        startAmbient(SOUND[name])
-    end
-    function Weather.setType(name)
-        name = normType(name)
-        Config.WeatherType = name
-        if Config.Weather then applyType(name) end
-    end
-    function Weather.setIntensity(v)
-        Config.WeatherIntensity = math.clamp(v, 0.15, 2)
-        if not Config.Weather then return end
-        local I = Config.WeatherIntensity
-        for _, L in ipairs(_partLayers) do
-            if L.emitter then
-                pcall(tuneLayer, L, I)
-                if L.rateTween then L.rateTween:Cancel(); L.rateTween = nil end
-                pcall(function() L.emitter.Rate = layerRate(L, I) end)
-            end
-        end
-        if _curType == "Rain" then pcall(tuneRain) end
-        if _curType then pcall(applyMood, _curType) end
-    end
-    function Weather.setVolume(v)
-        Config.WeatherSoundVolume = v
-        if _ambient then pcall(function() _ambient.Volume = v end) end
-    end
-    function Weather.toggleMood(on)
-        Config.WeatherMood = on
-        if Config.Weather and _curType then
-            if on then applyMood(_curType) else clearMood() end
-        end
-    end
-    function Weather.toggleStorm(on) Config.WeatherStorm = on end
-    function Weather.toggleSkyFlash(on) Config.WeatherStormFlash = on end
-    function Weather.toggleMeteors(on) Config.WeatherMeteors = on end
-    function Weather.setMeteorsRate(v) Config.WeatherMeteorRate = v end
-    function Weather.toggleShootingStars(on) Config.WeatherShootingStars = on end
-    function Weather.setStarsRate(v) Config.WeatherStarRate = v end
-    function Weather.toggleCelestial(on) Config.SkyboxHideCelestial = on end
-    function Weather.toggleGodRays(on) Config.WeatherGodRays = on end
-    function Weather.toggleRainbow(on) Config.WeatherRainbow = on end
-    function Weather.togglePuddles(on) Config.WeatherPuddles = on end
-    function Weather.toggleClock(on) Config.WeatherClockDial = on end
-
-    function Weather.enableWeather()
-        Config.Weather = true
-        getFolder(); startFollow()
-        applyType(cfg("WeatherType", "Rain"))
-    end
-    function Weather.disableWeather()
-        Config.Weather = false
-        stopFollow(); stopRain(); clearPartLayers(); killFade(); clearMood()
-        if _ambient then pcall(function() _ambient:Destroy() end); _ambient = nil end
-        _curType = nil
-    end
-
-    function Weather.setSkybox(preset)
-        Config.SkyboxPreset = preset
-        local sky = Lighting:FindFirstChildOfClass("Sky")
-        if preset == "Off" then
-            if sky then sky:Destroy() end
-        else
-            if not sky then sky = Instance.new("Sky"); sky.Parent = Lighting end
-            if SkyPresets[preset] then ApplySky(SkyPresets[preset]) end
-        end
-    end
-
-    function Weather.init()
-        if Config.Weather then pcall(Weather.enableWeather) end
-        if Config.SkyboxPreset and Config.SkyboxPreset ~= "Off" then pcall(Weather.setSkybox, Config.SkyboxPreset) end
-    end
-    function Weather.unload()
-        pcall(Weather.disableWeather)
-        if _folder then pcall(function() _folder:Destroy() end); _folder = nil end
-    end
-end)()
-
-Weather.init()
-
--- ==========================================
--- Visuals 탭에 Weather 그룹박스 추가
--- ==========================================
-local WX = Tabs.Visuals:AddLeftGroupbox('Weather System')
-
-WX:AddToggle('Weather', { Text='Enable Weather', Default=(Config.Weather or false),
-    Callback=function(v) if v then Weather.enableWeather() else Weather.disableWeather() end end })
-
-local wxDep = WX:AddDependencyBox()
-wxDep:AddDropdown('WeatherType', { Values={'Rain','Snow','Petals','Autumn','Mist','Ash','Sandstorm','Embers','Fireflies'},
-    Default=(Config.WeatherType or 'Rain'), Text='Precipitation',
-    Callback=function(v) Weather.setType(v) end })
-wxDep:AddSlider('WeatherIntensity', { Text='Intensity', Default=(Config.WeatherIntensity or 1.0),
-    Min=0.15, Max=2, Rounding=2, Suffix='x',
-    Callback=function(v) Weather.setIntensity(v) end })
-wxDep:AddSlider('WeatherSoundVolume', { Text='Volume', Default=(Config.WeatherSoundVolume or 0.35),
-    Min=0, Max=1, Rounding=2,
-    Callback=function(v) Weather.setVolume(v) end })
-wxDep:AddToggle('WeatherMood', { Text='Mood tint', Default=(Config.WeatherMood or true),
-    Callback=function(v) Weather.toggleMood(v) end })
-wxDep:AddDivider('Atmosphere')
-wxDep:AddToggle('WeatherStorm', { Text='Storm & lightning', Default=(Config.WeatherStorm or false),
-    Callback=function(v) Weather.toggleStorm(v) end })
-
-local stormDep = wxDep:AddDependencyBox()
-stormDep:AddToggle('WeatherStormFlash', { Text='Sky flash', Default=(Config.WeatherStormFlash or true),
-    Callback=function(v) Weather.toggleSkyFlash(v) end })
-stormDep:SetupDependencies({ { Toggles.WeatherStorm, true } })
-
-wxDep:AddToggle('WeatherMeteors', { Text='Meteors', Default=(Config.WeatherMeteors or false),
-    Callback=function(v) Weather.toggleMeteors(v) end })
-local metDep = wxDep:AddDependencyBox()
-metDep:AddSlider('WeatherMeteorRate', { Text='Rate', Default=(Config.WeatherMeteorRate or 1.0),
-    Min=0.25, Max=3, Rounding=2, Suffix='x', Compact=true,
-    Callback=function(v) Weather.setMeteorsRate(v) end })
-metDep:SetupDependencies({ { Toggles.WeatherMeteors, true } })
-
-wxDep:AddToggle('WeatherShootingStars', { Text='Shooting stars', Default=(Config.WeatherShootingStars or false),
-    Callback=function(v) Weather.toggleShootingStars(v) end })
-local starDep = wxDep:AddDependencyBox()
-starDep:AddSlider('WeatherStarRate', { Text='Rate', Default=(Config.WeatherStarRate or 1.0),
-    Min=0.25, Max=3, Rounding=2, Suffix='x', Compact=true,
-    Callback=function(v) Weather.setStarsRate(v) end })
-starDep:SetupDependencies({ { Toggles.WeatherShootingStars, true } })
-
-wxDep:AddDropdown('SkyboxPreset', { Values={'Off', 'Purple Nebula', 'Night Sky', 'Pink Sunset', 'Vaporwave'},
-    Default=(Config.SkyboxPreset or 'Off'), Text='Skybox',
-    Callback=function(v) Weather.setSkybox(v) end })
-wxDep:AddToggle('SkyboxHideCelestial', { Text='Hide celestial', Default=(Config.SkyboxHideCelestial or false),
-    Callback=function(v) Weather.toggleCelestial(v) end })
-wxDep:AddToggle('WeatherGodRays', { Text='God rays', Default=(Config.WeatherGodRays or false),
-    Callback=function(v) Weather.toggleGodRays(v) end })
-wxDep:AddToggle('WeatherRainbow', { Text='Rainbow', Default=(Config.WeatherRainbow or false),
-    Callback=function(v) Weather.toggleRainbow(v) end })
-wxDep:AddToggle('WeatherPuddles', { Text='Puddles', Default=(Config.WeatherPuddles or false),
-    Callback=function(v) Weather.togglePuddles(v) end })
-wxDep:AddToggle('WeatherClockDial', { Text='Clock dial', Default=(Config.WeatherClockDial or false),
-    Callback=function(v) Weather.toggleClock(v) end })
-wxDep:SetupDependencies({ { Toggles.Weather, true } })
+end)
 
 -- ==========================================
 -- Character 탭 (Emote)
 -- ==========================================
 local EmoteGroup = Tabs.Character:AddLeftGroupbox('Emote')
+
 local EmoteEnabled = false
 local emoteTrack = nil
 local EMOTESPEED = 1
+
 local EMOTES = {
     "rbxassetid://507771019",
     "rbxassetid://507776043",
@@ -1671,150 +1884,639 @@ local EMOTES = {
     "rbxassetid://3698339488",
     "rbxassetid://92281817840531",
 }
+
 local function stopEmote()
     EmoteEnabled = false
-    if emoteTrack then pcall(function() emoteTrack:Stop() end); emoteTrack = nil end
+    if emoteTrack then
+        pcall(function() emoteTrack:Stop() end)
+        emoteTrack = nil
+    end
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum then pcall(function() for _, t in ipairs(hum:GetPlayingAnimationTracks()) do t:Stop() end end) end
+    if hum then
+        pcall(function()
+            for _, t in ipairs(hum:GetPlayingAnimationTracks()) do
+                t:Stop()
+            end
+        end)
+    end
 end
+
 local function playEmote(char)
     if not EmoteEnabled then return end
     char = char or LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 3)
     if not hum then return end
-    local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
+    local animator = hum:FindFirstChildOfClass("Animator")
+    if not animator then
+        animator = Instance.new("Animator")
+        animator.Parent = hum
+    end
+
     for _, id in ipairs(EMOTES) do
         local ok, track = pcall(function()
-            local a = Instance.new("Animation"); a.AnimationId = id
+            local a = Instance.new("Animation")
+            a.AnimationId = id
             local t = animator:LoadAnimation(a)
-            t.Priority = Enum.AnimationPriority.Action4; t.Looped = true
+            t.Priority = Enum.AnimationPriority.Action4
+            t.Looped = true
             t:Play(0.1, 1, EMOTESPEED)
             return t
         end)
         if ok and track then
             emoteTrack = track
-            track.Stopped:Connect(function() if EmoteEnabled then task.defer(function() playEmote(char) end) end end)
+            track.Stopped:Connect(function()
+                if EmoteEnabled then
+                    task.defer(function() playEmote(char) end)
+                end
+            end)
             return
         end
     end
 end
+
 LocalPlayer.CharacterAdded:Connect(function(char)
-    if EmoteEnabled then task.delay(0.5, function() if EmoteEnabled then playEmote(char) end end) end
+    if EmoteEnabled then
+        task.delay(0.5, function()
+            if EmoteEnabled then playEmote(char) end
+        end)
+    end
 end)
+
 EmoteGroup:AddToggle('EnableEmoteSpeed', {
-    Text = 'Enable Fast Emote', Default = false,
+    Text = 'Enable Fast Emote',
+    Default = false,
+    Tooltip = 'emote',
     Callback = function(Value)
-        if Value then EmoteEnabled = true; playEmote(LocalPlayer.Character) else stopEmote() end
+        if Value then
+            EmoteEnabled = true
+            playEmote(LocalPlayer.Character)
+        else
+            stopEmote()
+        end
     end
 })
+
 EmoteGroup:AddSlider('EmoteSpeedSlider', {
-    Text = 'Emote', Default = 1, Min = 1, Max = 1000, Rounding = 0,
+    Text = 'Emote',
+    Default = 1,
+    Min = 1,
+    Max = 1000,
+    Rounding = 0,
+    Compact = false,
     Callback = function(Value)
         EMOTESPEED = Value
-        if emoteTrack and EmoteEnabled then pcall(function() emoteTrack:AdjustSpeed(EMOTESPEED) end) end
+        if emoteTrack and EmoteEnabled then
+            pcall(function() emoteTrack:AdjustSpeed(EMOTESPEED) end)
+        end
     end
 })
 
 -- ==========================================
--- Misc 탭 (Device Spoof & Hit Sound)
+-- Misc 탭 (Device Spoof, Skin Changer & Hit Sound)
 -- ==========================================
 local Group = Tabs.Misc:AddLeftGroupbox('Device Spoofing')
 local SetControlsRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Replication"):WaitForChild("Fighter"):WaitForChild("SetControls")
+
 Group:AddDropdown('DeviceDropdown', {
     Values = { 'PC (Mouse & Keyboard)', 'Mobile (Touch)', 'Controller (Gamepad)', 'VR' },
-    Default = 1, Text = 'Device Spoof',
+    Default = 1,
+    Text = 'Device Spoof',
     Callback = function(Value)
         local TargetDevice = "MouseKeyboard"
         if Value:find("PC") then TargetDevice = "MouseKeyboard"
         elseif Value:find("Mobile") then TargetDevice = "Touch"
         elseif Value:find("Controller") then TargetDevice = "Gamepad"
         elseif Value:find("VR") then TargetDevice = "VR" end
+
         SetControlsRemote:FireServer("MouseKeyboard")
         task.wait(0.1)
         SetControlsRemote:FireServer(TargetDevice)
     end
 })
 
--- Hit Sound
-local HitSoundConfig = { Enable = false, RemoveDefaultSound = false, Volume = 3, Pitch = 1, Selected = "rust", NotifyEnable = false }
-local SoundLibrary = { ["rust"] = "rbxassetid://1255040462", ["windows xp"] = "rbxassetid://108009100115241" }
-local SoundKeys = { "rust", "windows xp" }
+Group:AddButton({
+    Text = 'Apply Selected Device',
+    Func = function()
+        if Options and Options.DeviceDropdown then
+            Options.DeviceDropdown:OnChanged(Options.DeviceDropdown.Value)
+        end
+    end
+})
 
+local SkinBox = Tabs.Misc:AddRightGroupbox('Skin Changer')
+SkinBox:AddButton('Unlock All', function()
+    task.spawn(function()
+        pcall(function()
+            if getgenv().SkinChangerLoaded then 
+                Library:Notify("The skin changer is already running!", 2)
+                return 
+            end
+
+            Library:Notify("Loading Skin Changer...", 2)
+
+            local playerScripts = LocalPlayer:WaitForChild("PlayerScripts")
+            local controllers = playerScripts:WaitForChild("Controllers")
+
+            local EnumLibrary, CosmeticLibrary, ItemLibrary, DataController
+            pcall(function() EnumLibrary = require(ReplicatedStorage.Modules:WaitForChild("EnumLibrary", 10)) end)
+            if EnumLibrary and EnumLibrary.WaitForEnumBuilder then pcall(function() EnumLibrary:WaitForEnumBuilder() end) end
+            pcall(function() CosmeticLibrary = require(ReplicatedStorage.Modules:WaitForChild("CosmeticLibrary", 10)) end)
+            pcall(function() ItemLibrary = require(ReplicatedStorage.Modules:WaitForChild("ItemLibrary", 10)) end)
+            pcall(function() DataController = require(controllers:WaitForChild("PlayerDataController", 10)) end)
+
+            if not (CosmeticLibrary and ItemLibrary and DataController) then return end
+
+            getgenv().SkinChangerLoaded = true
+
+            local equipped, favorites = {}, {}
+            local constructingWeapon, viewingProfile = nil, nil
+            local lastUsedWeapon = nil
+
+            local remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
+            local dataRemotes = remotes and remotes:WaitForChild("Data", 5)
+            local equipRemote = dataRemotes and dataRemotes:WaitForChild("EquipCosmetic", 5)
+            local favoriteRemote = dataRemotes and dataRemotes:WaitForChild("FavoriteCosmetic", 5)
+            local replicationRemotes = remotes and remotes:WaitForChild("Replication", 5)
+            local fighterRemotes = replicationRemotes and replicationRemotes:WaitForChild("Fighter", 5)
+            local useItemRemote = fighterRemotes and fighterRemotes:WaitForChild("UseItem", 5)
+
+            local function cloneCosmetic(name, cosmeticType, options)
+                local base = CosmeticLibrary.Cosmetics[name]
+                if not base then return nil end
+                local data = {}
+                for key, value in pairs(base) do data[key] = value end
+                data.Name = name
+                data.Type = data.Type or cosmeticType
+                data.Seed = data.Seed or math.random(1, 1000000)
+                if EnumLibrary then
+                    local success, enumId = pcall(EnumLibrary.ToEnum, EnumLibrary, name)
+                    if success and enumId then data.Enum, data.ObjectID = enumId, data.ObjectID or enumId end
+                end
+                if options then
+                    if options.inverted ~= nil then data.Inverted = options.inverted end
+                    if options.favoritesOnly ~= nil then data.OnlyUseFavorites = options.favoritesOnly end
+                end
+                return data
+            end
+
+            CosmeticLibrary.OwnsCosmeticNormally = function() return true end
+            CosmeticLibrary.OwnsCosmeticUniversally = function() return true end
+            CosmeticLibrary.OwnsCosmeticForWeapon = function() return true end
+            local originalOwnsCosmetic = CosmeticLibrary.OwnsCosmetic
+            CosmeticLibrary.OwnsCosmetic = function(self, inventory, name, weapon)
+                if name and typeof(name) == "string" and name:find("MISSING_") then return originalOwnsCosmetic(self, inventory, name, weapon) end
+                return true
+            end
+
+            local originalGet = DataController.Get
+            DataController.Get = function(self, key)
+                local data = originalGet(self, key)
+                if key == "CosmeticInventory" then
+                    local proxy = {}
+                    if data then for k, v in pairs(data) do proxy[k] = v end end
+                    return setmetatable(proxy, {__index = function() return true end})
+                end
+                if key == "FavoritedCosmetics" then
+                    local result = data and table.clone(data) or {}
+                    for weapon, favs in pairs(favorites) do
+                        result[weapon] = result[weapon] or {}
+                        for name, isFav in pairs(favs) do result[weapon][name] = isFav end
+                    end
+                    return result
+                end
+                return data
+            end
+
+            local originalGetWeaponData = DataController.GetWeaponData
+            DataController.GetWeaponData = function(self, weaponName)
+                local data = originalGetWeaponData(self, weaponName)
+                if not data then return nil end
+                local merged = {}
+                for key, value in pairs(data) do merged[key] = value end
+                merged.Name = weaponName
+                if equipped[weaponName] then
+                    for cosmeticType, cosmeticData in pairs(equipped[weaponName]) do merged[cosmeticType] = cosmeticData end
+                end
+                return merged
+            end
+
+            local FighterController
+            pcall(function() FighterController = require(controllers:WaitForChild("FighterController", 10)) end)
+
+            local oldNamecall
+            oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+                local method = getnamecallmethod()
+                if method ~= "FireServer" or checkcaller() then return oldNamecall(self, ...) end
+                local args = {...}
+                
+                if useItemRemote and self == useItemRemote then
+                    local objectID = args[1]
+                    if FighterController then
+                        pcall(function()
+                            local fighter = FighterController:GetFighter(LocalPlayer)
+                            if fighter and typeof(fighter) == "table" and fighter.Items then
+                                for _, item in pairs(fighter.Items) do
+                                    if type(item) == "table" and item.Get then
+                                        if item:Get("ObjectID") == objectID then
+                                            lastUsedWeapon = item.Name
+                                            break
+                                        end
+                                    end
+                                end
+                            end
+                        end)
+                    end
+                end            
+                
+                if equipRemote and self == equipRemote then
+                    local weaponName, cosmeticType, cosmeticName, options = args[1], args[2], args[3], args[4] or {}                
+                    if cosmeticName and cosmeticName ~= "None" and cosmeticName ~= "" then
+                        local inventory = DataController:Get("CosmeticInventory")
+                        if inventory and rawget(inventory, cosmeticName) then return oldNamecall(self, ...) end
+                    end                
+                    equipped[weaponName] = equipped[weaponName] or {}                
+                    if not cosmeticName or cosmeticName == "None" or cosmeticName == "" then
+                        equipped[weaponName][cosmeticType] = nil
+                        if not next(equipped[weaponName]) then equipped[weaponName] = nil end
+                    else
+                        local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = options.IsInverted, favoritesOnly = options.OnlyUseFavorites})
+                        if cloned then equipped[weaponName][cosmeticType] = cloned end
+                    end                
+                    task.defer(function()
+                        pcall(function() DataController.CurrentData:Replicate("WeaponInventory") end)
+                    end)
+                    return
+                end            
+                
+                if favoriteRemote and self == favoriteRemote then
+                    favorites[args[1]] = favorites[args[1]] or {}
+                    favorites[args[1]][args[2]] = args[3] or nil
+                    task.spawn(function() pcall(function() DataController.CurrentData:Replicate("FavoritedCosmetics") end) end)
+                    return
+                end            
+                return oldNamecall(self, ...)
+            end)
+
+            Library:Notify("Skin unlock complete!", 3)
+        end)
+    end)
+end)
+
+-- ==========================================
+-- Hit Sound 로직 및 LinoriaLib 그룹박스 통합
+-- ==========================================
+local HitSoundConfig = {
+    Enable = false,
+    RemoveDefaultSound = false,
+    Volume = 3,
+    Pitch = 1,
+    Selected = "rust",
+    NotifyEnable = false,
+    NotifyDuration = 3,
+    NotifyMsg = "Hit {target} for {damage}",
+}
+
+local SoundLibrary = {
+    ["windows xp"]                  = "rbxassetid://108009100115241",
+    ["minecraft bow"]               = "rbxassetid://3442683707",
+    ["neverlose"]                   = "rbxassetid://97643101798871",
+    ["steve"]                       = "rbxassetid://132883456216684",
+    ["among us"]                    = "rbxassetid://93866204681438",
+    ["bonk"]                        = "rbxassetid://5766898159",
+    ["rust"]                        = "rbxassetid://1255040462",
+    ["fatality"]                    = "rbxassetid://6534947869",
+    ["hitmarker"]                   = "rbxassetid://133749572213659",
+    ["csgo"]                        = "rbxassetid://5764885315",
+    ["minecraft success bow hit"]   = "rbxassetid://131197435969853",
+    ["sparkle"]                     = "rbxassetid://110241936966089",
+    ["rust hs"]                     = "rbxassetid://4764109000",
+    ["windows 10 error"]            = "rbxassetid://5914602124",
+    ["Mambo"]                       = "rbxassetid://119974879573475",
+    ["no sound"]                    = "rbxassetid://139836625302855",
+    ["TF2 Headshot"]                = "rbxassetid://8255306220",
+    ["windows 11 error"]            = "rbxassetid://8499261098",
+}
+
+local SoundKeys = {}
+for k in pairs(SoundLibrary) do
+    SoundKeys[#SoundKeys + 1] = k
+end
+table.sort(SoundKeys)
+
+local fighter_controller, client_viewmodel
+
+pcall(function()
+    fighter_controller = require(LocalPlayer.PlayerScripts.Controllers.FighterController)
+end)
+
+pcall(function()
+    client_viewmodel = require(
+        LocalPlayer.PlayerScripts.Modules.ClientReplicatedClasses.ClientFighter.ClientItem.ClientViewModel
+    )
+end)
+
+if client_viewmodel and client_viewmodel.PlayHitmarkerSound then
+    local _originalPlayHitmarker = client_viewmodel.PlayHitmarkerSound
+    client_viewmodel.PlayHitmarkerSound = function(self, critical, pitch)
+        if not HitSoundConfig.Enable then
+            return _originalPlayHitmarker(self, critical, pitch)
+        end
+
+        if HitSoundConfig.Selected and SoundLibrary[HitSoundConfig.Selected] then
+            local ok = pcall(function()
+                self:_CreateHitmarkerSound(
+                    SoundLibrary[HitSoundConfig.Selected],
+                    HitSoundConfig.Volume,
+                    HitSoundConfig.Pitch,
+                    LocalPlayer.PlayerGui,
+                    true,
+                    1
+                )
+            end)
+            if not ok then
+                return _originalPlayHitmarker(self, critical, pitch)
+            end
+            if HitSoundConfig.RemoveDefaultSound then
+                return
+            end
+        end
+
+        return _originalPlayHitmarker(self, critical, pitch)
+    end
+end
+
+if fighter_controller and fighter_controller.LocalFighter then
+    local _localFighter = fighter_controller.LocalFighter
+    if _localFighter.ReplicateFromServer then
+        local _originalReplicate = _localFighter.ReplicateFromServer
+        _localFighter.ReplicateFromServer = function(self, eventType, ...)
+            if eventType == "DamageNumberEffect" and HitSoundConfig.NotifyEnable then
+                local args     = { ... }
+                local hit_root = args[1]
+                local damage   = args[2]
+                local headshot = args[3]
+
+                if hit_root and damage then
+                    local hitChar = hit_root.Parent
+                    if hitChar and hitChar:FindFirstChildOfClass("Humanoid") then
+                        local part = headshot and "Head" or "Body"
+                        local msg  = HitSoundConfig.NotifyMsg
+                        msg = msg:gsub("{target}", hitChar.Name)
+                        msg = msg:gsub("{damage}", tostring(math.floor(damage + 0.5)))
+                        msg = msg:gsub("{hitpart}", part)
+
+                        print("[HitNotify] " .. msg)
+                    end
+                end
+                return
+            end
+
+            return _originalReplicate(self, eventType, ...)
+        end
+    end
+end
+
+-- Misc 탭 내에 Hit Sound 그룹박스 추가
 local HitSoundGroup = Tabs.Misc:AddRightGroupbox('Hit Sound')
-HitSoundGroup:AddToggle('HitSoundEnable', { Text = 'Enable Hit Sound', Default = false, Callback = function(v) HitSoundConfig.Enable = v end })
-HitSoundGroup:AddDropdown('HitSoundDropdown', { Values = SoundKeys, Default = 1, Text = 'Sound Effect', Callback = function(v) HitSoundConfig.Selected = v end })
-HitSoundGroup:AddSlider('HitSoundVolume', { Text = 'Volume', Default = 3, Min = 0, Max = 5, Rounding = 1, Callback = function(v) HitSoundConfig.Volume = v end })
+
+HitSoundGroup:AddToggle('HitSoundEnable', {
+    Text = 'Enable Hit Sound',
+    Default = HitSoundConfig.Enable,
+    Callback = function(Value)
+        HitSoundConfig.Enable = Value
+    end
+})
+
+HitSoundGroup:AddDropdown('HitSoundDropdown', {
+    Values = SoundKeys,
+    Default = 7, -- 'rust' 기본 선택
+    Text = 'Sound Effect',
+    Callback = function(Value)
+        HitSoundConfig.Selected = Value
+    end
+})
+
+HitSoundGroup:AddSlider('HitSoundVolume', {
+    Text = 'Volume',
+    Default = HitSoundConfig.Volume,
+    Min = 0,
+    Max = 5,
+    Rounding = 1,
+    Callback = function(Value)
+        HitSoundConfig.Volume = Value
+    end
+})
+
+HitSoundGroup:AddSlider('HitSoundPitch', {
+    Text = 'Pitch',
+    Default = HitSoundConfig.Pitch,
+    Min = 0.5,
+    Max = 2,
+    Rounding = 2,
+    Callback = function(Value)
+        HitSoundConfig.Pitch = Value
+    end
+})
+
+HitSoundGroup:AddToggle('HitSoundRemoveDefault', {
+    Text = 'Remove Default Sound',
+    Default = HitSoundConfig.RemoveDefaultSound,
+    Callback = function(Value)
+        HitSoundConfig.RemoveDefaultSound = Value
+    end
+})
+
+HitSoundGroup:AddToggle('HitSoundNotifyEnable', {
+    Text = 'Hit Notify',
+    Default = HitSoundConfig.NotifyEnable,
+    Callback = function(Value)
+        HitSoundConfig.NotifyEnable = Value
+    end
+})
+
+HitSoundGroup:AddSlider('HitSoundNotifyDuration', {
+    Text = 'Notify Duration',
+    Default = HitSoundConfig.NotifyDuration,
+    Min = 1,
+    Max = 5,
+    Rounding = 1,
+    Callback = function(Value)
+        HitSoundConfig.NotifyDuration = Value
+    end
+})
 
 -- ==========================================
 -- ESP Render Loop
 -- ==========================================
 local espData = {}
+
 local function addESP(p)
     if p == LocalPlayer then return end
     task.spawn(function()
-        local box, nameText
+        local box, hpBg, hpBar, hpText, nameText, distText, tracer
         pcall(function()
             if Drawing then
-                box = Drawing.new("Square"); box.Visible = false; box.Color = Color3.new(1, 1, 1); box.Thickness = 1
+                box = Drawing.new("Square"); box.Visible = false; box.Color = Color3.new(1, 1, 1); box.Thickness = 1; box.Filled = false
+                hpBg = Drawing.new("Square"); hpBg.Visible = false; hpBg.Color = Color3.new(0, 0, 0); hpBg.Thickness = 1; hpBg.Filled = true
+                hpBar = Drawing.new("Square"); hpBar.Visible = false; hpBar.Color = Color3.new(0, 1, 0); hpBar.Thickness = 1; hpBar.Filled = true
+                hpText = Drawing.new("Text"); hpText.Visible = false; hpText.Center = true; hpText.Outline = true; hpText.Color = Color3.new(1, 1, 1); hpText.Size = 13
                 nameText = Drawing.new("Text"); nameText.Visible = false; nameText.Center = true; nameText.Outline = true; nameText.Color = Color3.new(1, 1, 1); nameText.Size = 13
+                distText = Drawing.new("Text"); distText.Visible = false; distText.Center = true; distText.Outline = true; distText.Color = Color3.new(1, 1, 1); distText.Size = 13
+                tracer = Drawing.new("Line"); tracer.Visible = false; tracer.Color = Color3.new(1, 1, 1); tracer.Thickness = 1
             end
         end)
-        if box then espData[p] = { Box = box, NameText = nameText } end
+        
+        if box then
+            espData[p] = { Box = box, HpBg = hpBg, HealthBar = hpBar, HealthText = hpText, NameText = nameText, DistText = distText, Tracer = tracer, Skeleton = {} }
+            local bones = {{"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"}, {"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"}, {"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"}, {"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"Head", "Torso"}, {"Torso", "Left Arm"}, {"Torso", "Right Arm"}, {"Torso", "Left Leg"}, {"Torso", "Right Leg"}}
+            for _, b in pairs(bones) do 
+                pcall(function() 
+                    if Drawing then table.insert(espData[p].Skeleton, {b[1], b[2], Drawing.new("Line")}) end
+                end) 
+            end
+        end
     end)
 end
+
 for _, p in ipairs(Players:GetPlayers()) do addESP(p) end
 Players.PlayerAdded:Connect(addESP)
 Players.PlayerRemoving:Connect(function(p)
     if espData[p] then
-        pcall(function() espData[p].Box:Remove(); espData[p].NameText:Remove() end)
+        pcall(function()
+            espData[p].Box:Remove(); espData[p].HpBg:Remove(); espData[p].HealthBar:Remove(); espData[p].HealthText:Remove()
+            espData[p].NameText:Remove(); espData[p].DistText:Remove(); espData[p].Tracer:Remove()
+            for _, s in pairs(espData[p].Skeleton) do s[3]:Remove() end
+        end)
         espData[p] = nil
     end
 end)
 
+local function IsToggleActive(toggleName)
+    return Toggles and Toggles[toggleName] and Toggles[toggleName].Value == true
+end
+
+local function UpdateChams(c, enable)
+    if not c then return end
+    local highlight = c:FindFirstChild("AntiHubChams")
+    if enable then
+        if not highlight then
+            highlight = Instance.new("Highlight")
+            highlight.Name = "AntiHubChams"
+            highlight.FillColor = Color3.new(1, 0, 0)
+            highlight.OutlineColor = Color3.new(1, 1, 1)
+            highlight.FillTransparency = 0.5
+            highlight.Parent = c
+        end
+    else
+        if highlight then highlight:Destroy() end
+    end
+end
+
 RunService.RenderStepped:Connect(function()
     local CurrentCam = Workspace.CurrentCamera
     if not CurrentCam then return end
+
+    local isChamsActive = IsToggleActive("ESPChams")
+
     for p, d in pairs(espData) do
+        local isAlive = false
         local c = p.Character
+        local root, head, rootPos, boxSize, boxPos, top, bottom, height, width
+        
         if c and c:FindFirstChild("Humanoid") and c.Humanoid.Health > 0 then
-            local root = c:FindFirstChild("HumanoidRootPart")
-            if root then
+            root = c:FindFirstChild("HumanoidRootPart")
+            head = c:FindFirstChild("Head") or c:FindFirstChild("UpperTorso") or c:FindFirstChild("Torso")
+            
+            if root and head then
                 local rPos, onScreen = CurrentCam:WorldToViewportPoint(root.Position)
-                if onScreen and Toggles.ESPBox and Toggles.ESPBox.Value then
-                    d.Box.Size = Vector2.new(30, 50)
-                    d.Box.Position = Vector2.new(rPos.X - 15, rPos.Y - 25)
-                    d.Box.Visible = true
-                else
-                    d.Box.Visible = false
+                if onScreen then
+                    isAlive = true
+                    rootPos = rPos
+                    local headPos = CurrentCam:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+                    local legPos = CurrentCam:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
+                    height = math.abs(headPos.Y - legPos.Y)
+                    width = height * 0.6 
+                    boxSize = Vector2.new(width, height)
+                    boxPos = Vector2.new(rootPos.X - width / 2, headPos.Y)
+                    top = {Y = headPos.Y}
+                    bottom = {Y = legPos.Y}
                 end
-            else
-                d.Box.Visible = false
             end
+        end
+        
+        if isAlive then
+            if IsToggleActive("ESPBox") then d.Box.Size = boxSize; d.Box.Position = boxPos; d.Box.Visible = true else d.Box.Visible = false end
+            
+            if IsToggleActive("ESPHealth") then
+                local maxH = math.max(c.Humanoid.MaxHealth, 1)
+                local h = math.clamp(c.Humanoid.Health / maxH, 0, 1)
+                d.HpBg.Size = Vector2.new(4, height); d.HpBg.Position = Vector2.new(boxPos.X - 6, boxPos.Y); d.HpBg.Visible = true
+                local barHeight = height * h
+                d.HealthBar.Size = Vector2.new(2, barHeight); d.HealthBar.Position = Vector2.new(boxPos.X - 5, boxPos.Y + (height - barHeight))
+                d.HealthBar.Color = Color3.fromHSV(h * 0.33, 1, 1); d.HealthBar.Visible = true
+                d.HealthText.Text = tostring(math.floor(c.Humanoid.Health)); d.HealthText.Position = Vector2.new(boxPos.X - 25, boxPos.Y + (height - barHeight) - 6); d.HealthText.Visible = true
+            else 
+                d.HpBg.Visible = false; d.HealthBar.Visible = false; d.HealthText.Visible = false 
+            end
+            
+            if IsToggleActive("ESPName") then d.NameText.Text = p.Name; d.NameText.Position = Vector2.new(boxPos.X + width/2, top.Y - 15); d.NameText.Visible = true else d.NameText.Visible = false end
+            if IsToggleActive("ESPDistance") then local dist = math.floor((CurrentCam.CFrame.Position - root.Position).Magnitude); d.DistText.Text = tostring(dist) .. "m"; d.DistText.Position = Vector2.new(boxPos.X + width/2, bottom.Y + 2); d.DistText.Visible = true else d.DistText.Visible = false end
+            if IsToggleActive("ESPTracer") then d.Tracer.From = Vector2.new(CurrentCam.ViewportSize.X / 2, CurrentCam.ViewportSize.Y); d.Tracer.To = Vector2.new(rootPos.X, bottom.Y); d.Tracer.Visible = true else d.Tracer.Visible = false end
+            
+            if IsToggleActive("ESPSkeleton") then
+                for _, s in pairs(d.Skeleton) do
+                    local p1, p2 = c:FindFirstChild(s[1]), c:FindFirstChild(s[2])
+                    if p1 and p2 then
+                        local v1, o1 = CurrentCam:WorldToViewportPoint(p1.Position)
+                        local v2, o2 = CurrentCam:WorldToViewportPoint(p2.Position)
+                        if o1 and o2 then s[3].From = Vector2.new(v1.X, v1.Y); s[3].To = Vector2.new(v2.X, v2.Y); s[3].Visible = true; s[3].Color = Color3.new(1, 1, 1) else s[3].Visible = false end
+                    else s[3].Visible = false end
+                end
+            else 
+                for _, s in pairs(d.Skeleton) do s[3].Visible = false end 
+            end
+            
+            UpdateChams(c, isChamsActive)
         else
-            d.Box.Visible = false
+            d.Box.Visible = false; d.HpBg.Visible = false; d.HealthBar.Visible = false; d.HealthText.Visible = false
+            d.NameText.Visible = false; d.DistText.Visible = false; d.Tracer.Visible = false
+            for _, s in pairs(d.Skeleton) do s[3].Visible = false end
+            
+            if c then UpdateChams(c, false) end
         end
     end
 end)
 
 -- ==========================================
--- Setting 탭 (Config & Theme)
+-- Setting 탭 (Config Manager & Theme Manager)
 -- ==========================================
 local SettingsMenu = Tabs.Setting:AddLeftGroupbox('Menu Settings')
+
 SettingsMenu:AddButton('Unload UI', function()
-    pcall(function() Visuals.unload(); Weather.unload() end)
+    pcall(function() Visuals.unload() end)
     Library:Unload()
 end)
-SettingsMenu:AddLabel('Menu Keybind'):AddKeyPicker('MenuKeybind', { Default = 'End', NoUI = true, Text = 'Menu Keybind' })
+
+SettingsMenu:AddLabel('Menu Keybind'):AddKeyPicker('MenuKeybind', {
+    Default = 'End',
+    NoUI = true,
+    Text = 'Menu Keybind'
+})
 
 Library.ToggleKeybind = Options.MenuKeybind
+
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
+
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({ 'MenuKeybind' })
+
 ThemeManager:SetFolder('YumuEnchantment')
 SaveManager:SetFolder('YumuEnchantment/configs')
+
 SaveManager:BuildConfigSection(Tabs.Setting)
 ThemeManager:ApplyToTab(Tabs.Setting)
+
 SaveManager:LoadAutoloadConfig()
