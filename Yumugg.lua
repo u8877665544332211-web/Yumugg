@@ -2575,7 +2575,7 @@ if fighter_controller and fighter_controller.LocalFighter then
 end
 
 -- Misc 탭 내에 Hit Sound 그룹박스 추가
-local HitSoundGroup = Tabs.Misc:AddRightGroupbox('Hit Sound')
+local HitSoundGroup = Tabs.Visuals:AddRightGroupbox('Hit Sound')
 
 HitSoundGroup:AddToggle('HitSoundEnable', {
     Text = 'Enable Hit Sound',
