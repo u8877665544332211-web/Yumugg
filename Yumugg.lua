@@ -1974,6 +1974,300 @@ EmoteGroup:AddSlider('EmoteSpeedSlider', {
 })
 
 -- ==========================================
+-- 날씨변경 장동해라 제발
+-- ==========================================
+local WeatherBox = Tabs.Visuals:AddLeftGroupbox("Weather")
+local EffectsBox = Tabs.Visuals:AddRightGroupbox("Extra Effects")
+local InfoBox = Tabs.Settings:AddLeftGroupbox("Information")
+InfoBox:AddLabel("Client-side visual effects only.", true)
+InfoBox:AddLabel("This does not change the server's weather.", true)
+
+local state = {
+    enabled = false,
+    type = "Rain",
+    intensity = 1,
+    volume = 0.35,
+    mood = true,
+    storm = false,
+    puddles = false,
+}
+local oldLighting = {
+    Brightness = Lighting.Brightness,
+    ClockTime = Lighting.ClockTime,
+    FogStart = Lighting.FogStart,
+    FogEnd = Lighting.FogEnd,
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+}
+local folder, emitter, ambientSound, moodEffect, stormConnection
+local effects = {}
+local random = Random.new()
+
+local weatherTypes = {
+    "Rain", "Snow", "Mist", "Embers", "Fireflies", "Petals", "Autumn", "Ash", "Sandstorm"
+}
+local weatherInfo = {
+    Rain = { texture = "rbxasset://textures/particles/sparkles_main.dds", color = Color3.fromRGB(190, 210, 235), rate = 220, speed = 95, size = 0.12, sound = "rbxassetid://9112858162" },
+    Snow = { texture = "rbxassetid://101749163393113", color = Color3.fromRGB(240, 245, 255), rate = 95, speed = 18, size = 0.32, sound = "rbxassetid://9112854440" },
+    Mist = { texture = "rbxasset://textures/particles/smoke_main.dds", color = Color3.fromRGB(205, 215, 225), rate = 35, speed = 4, size = 2.8, sound = "rbxassetid://9112854440" },
+    Embers = { texture = "rbxasset://textures/particles/sparkles_main.dds", color = Color3.fromRGB(255, 130, 55), rate = 55, speed = 12, size = 0.22, sound = "rbxassetid://2787093357" },
+    Fireflies = { texture = "rbxasset://textures/particles/sparkles_main.dds", color = Color3.fromRGB(190, 255, 125), rate = 28, speed = 2, size = 0.24, sound = "rbxassetid://9112764573" },
+    Petals = { texture = "rbxassetid://243344623", color = Color3.fromRGB(255, 170, 195), rate = 55, speed = 12, size = 0.35, sound = "rbxassetid://9112749254" },
+    Autumn = { texture = "rbxassetid://8590047664", color = Color3.fromRGB(220, 130, 55), rate = 50, speed = 14, size = 0.35, sound = "rbxassetid://9112854440" },
+    Ash = { texture = "rbxasset://textures/particles/smoke_main.dds", color = Color3.fromRGB(145, 140, 135), rate = 65, speed = 10, size = 0.25, sound = "rbxassetid://9112854440" },
+    Sandstorm = { texture = "rbxasset://textures/particles/smoke_main.dds", color = Color3.fromRGB(205, 170, 115), rate = 100, speed = 24, size = 0.3, sound = "rbxassetid://9112854440" },
+}
+local moodColors = {
+    Rain = Color3.fromRGB(205, 220, 255),
+    Snow = Color3.fromRGB(226, 240, 255),
+    Mist = Color3.fromRGB(220, 224, 230),
+    Embers = Color3.fromRGB(255, 215, 180),
+    Fireflies = Color3.fromRGB(220, 230, 190),
+    Petals = Color3.fromRGB(255, 225, 235),
+    Autumn = Color3.fromRGB(253, 225, 190),
+    Ash = Color3.fromRGB(215, 205, 195),
+    Sandstorm = Color3.fromRGB(224, 196, 150),
+}
+
+local function getRoot()
+    local character = LocalPlayer.Character
+    return character and (character:FindFirstChild("HumanoidRootPart") or character:FindFirstChildWhichIsA("BasePart"))
+end
+
+local function cleanupEffects()
+    if stormConnection then stormConnection:Disconnect(); stormConnection = nil end
+    for _, obj in ipairs(effects) do
+        if obj and obj.Parent then obj:Destroy() end
+    end
+    table.clear(effects)
+    if folder then folder:Destroy(); folder = nil end
+    emitter = nil
+    if ambientSound then ambientSound:Destroy(); ambientSound = nil end
+end
+
+local function restoreLighting()
+    if moodEffect then moodEffect:Destroy(); moodEffect = nil end
+    Lighting.Brightness = oldLighting.Brightness
+    Lighting.ClockTime = oldLighting.ClockTime
+    Lighting.FogStart = oldLighting.FogStart
+    Lighting.FogEnd = oldLighting.FogEnd
+    Lighting.Ambient = oldLighting.Ambient
+    Lighting.OutdoorAmbient = oldLighting.OutdoorAmbient
+end
+
+local function applyMood()
+    if moodEffect then moodEffect:Destroy(); moodEffect = nil end
+    if not state.enabled or not state.mood then return end
+    local color = moodColors[state.type]
+    if not color then return end
+    moodEffect = Instance.new("ColorCorrectionEffect")
+    moodEffect.Name = "RayfieldWeatherMood"
+    moodEffect.TintColor = color
+    moodEffect.Saturation = state.type == "Mist" and -0.2 or -0.08
+    moodEffect.Contrast = state.type == "Sandstorm" and 0.08 or 0.03
+    moodEffect.Parent = Lighting
+    table.insert(effects, moodEffect)
+end
+
+local function buildPuddles()
+    if not state.puddles or state.type ~= "Rain" then return end
+    local root = getRoot()
+    if not root then return end
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.FilterDescendantsInstances = { LocalPlayer.Character, folder }
+    for i = 1, 10 do
+        local angle = (math.pi * 2) * (i / 10)
+        local origin = root.Position + Vector3.new(math.cos(angle) * random:NextNumber(8, 36), 25, math.sin(angle) * random:NextNumber(8, 36))
+        local result = Workspace:Raycast(origin, Vector3.new(0, -65, 0), rayParams)
+        if result and result.Instance and result.Instance:IsA("BasePart") then
+            local puddle = Instance.new("Part")
+            puddle.Name = "LocalWeatherPuddle"
+            puddle.Anchored = true
+            puddle.CanCollide = false
+            puddle.CanTouch = false
+            puddle.CanQuery = false
+            puddle.Shape = Enum.PartType.Cylinder
+            puddle.Size = Vector3.new(0.035, random:NextNumber(2.5, 6), random:NextNumber(2.5, 6))
+            puddle.CFrame = CFrame.new(result.Position + result.Normal * 0.035) * CFrame.Angles(0, 0, math.rad(90))
+            puddle.Material = Enum.Material.Glass
+            puddle.Color = Color3.fromRGB(105, 140, 175)
+            puddle.Transparency = 0.45
+            puddle.Reflectance = 0.12
+            puddle.Parent = folder
+            table.insert(effects, puddle)
+        end
+    end
+end
+
+local function createWeather()
+    cleanupEffects()
+    if not state.enabled then return end
+    local root = getRoot()
+    if not root then return end
+
+    folder = Instance.new("Folder")
+    folder.Name = "RayfieldLocalWeather"
+    folder.Parent = Workspace
+
+    local info = weatherInfo[state.type] or weatherInfo.Rain
+    local part = Instance.new("Part")
+    part.Name = "WeatherEmitterAnchor"
+    part.Anchored = true
+    part.CanCollide = false
+    part.CanTouch = false
+    part.CanQuery = false
+    part.Transparency = 1
+    part.Size = Vector3.new(1, 1, 1)
+    part.Parent = folder
+    table.insert(effects, part)
+
+    emitter = Instance.new("ParticleEmitter")
+    emitter.Name = "WeatherParticles"
+    emitter.Texture = info.texture
+    emitter.Color = ColorSequence.new(info.color)
+    emitter.Rate = info.rate * state.intensity
+    emitter.Lifetime = NumberRange.new(state.type == "Rain" and 0.6 or 2, state.type == "Rain" and 1.1 or 4)
+    emitter.Speed = NumberRange.new(info.speed * 0.7, info.speed * 1.3)
+    emitter.Size = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, info.size * 0.7),
+        NumberSequenceKeypoint.new(1, info.size * 1.5),
+    })
+    emitter.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.15),
+        NumberSequenceKeypoint.new(1, 0.85),
+    })
+    emitter.Acceleration = state.type == "Rain" and Vector3.new(0, -Workspace.Gravity * 0.5, 0) or Vector3.new(2, -2, 0)
+    emitter.SpreadAngle = Vector2.new(18, 18)
+    emitter.EmissionDirection = Enum.NormalId.Bottom
+    emitter.Parent = part
+
+    local function updateAnchor()
+        if not state.enabled or not part.Parent then return end
+        local currentRoot = getRoot()
+        if currentRoot then
+            part.CFrame = CFrame.new(currentRoot.Position + Vector3.new(0, state.type == "Rain" and 32 or 18, 0))
+        end
+    end
+    updateAnchor()
+    stormConnection = RunService.Heartbeat:Connect(function()
+        updateAnchor()
+        if state.storm and state.enabled and random:NextNumber() < 0.0018 then
+            local oldBrightness = Lighting.Brightness
+            Lighting.Brightness = oldBrightness + 2
+            task.delay(0.12, function()
+                if state.enabled then Lighting.Brightness = oldBrightness end
+            end)
+        end
+    end)
+
+    if info.sound and state.volume > 0 then
+        ambientSound = Instance.new("Sound")
+        ambientSound.Name = "WeatherAmbience"
+        ambientSound.SoundId = info.sound
+        ambientSound.Volume = state.volume
+        ambientSound.Looped = true
+        ambientSound.RollOffMaxDistance = 100
+        ambientSound.Parent = SoundService
+        pcall(function() ambientSound:Play() end)
+    end
+
+    applyMood()
+    buildPuddles()
+end
+
+local function setEnabled(value)
+    state.enabled = value
+    if value then
+        createWeather()
+    else
+        cleanupEffects()
+        restoreLighting()
+    end
+end
+
+WeatherBox:AddToggle("WeatherEnabled", {
+    Text = "Enable weather",
+    Default = false,
+    Callback = function(value) setEnabled(value) end,
+})
+
+WeatherBox:AddDropdown("WeatherType", {
+    Values = weatherTypes,
+    Default = "Rain",
+    Multi = false,
+    Text = "Weather type",
+    Callback = function(option)
+        local selected = typeof(option) == "table" and option[1] or option
+        if weatherInfo[selected] then
+            state.type = selected
+            if state.enabled then createWeather() end
+        end
+    end,
+})
+
+WeatherBox:AddSlider("WeatherIntensity", {
+    Text = "Intensity",
+    Default = 1,
+    Min = 0.15,
+    Max = 2,
+    Rounding = 2,
+    Suffix = "x",
+    Callback = function(value)
+        state.intensity = value
+        if emitter then emitter.Rate = (weatherInfo[state.type].rate or 100) * value end
+    end,
+})
+
+WeatherBox:AddSlider("WeatherVolume", {
+    Text = "Ambient volume",
+    Default = 0.35,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Callback = function(value)
+        state.volume = value
+        if ambientSound then ambientSound.Volume = value end
+    end,
+})
+
+EffectsBox:AddToggle("WeatherMood", {
+    Text = "Atmosphere tint",
+    Default = true,
+    Callback = function(value)
+        state.mood = value
+        if state.enabled then applyMood() end
+    end,
+})
+
+EffectsBox:AddToggle("WeatherStorm", {
+    Text = "Storm / lightning flashes",
+    Default = false,
+    Callback = function(value) state.storm = value end,
+})
+
+EffectsBox:AddToggle("WeatherPuddles", {
+    Text = "Rain puddles",
+    Default = false,
+    Callback = function(value)
+        state.puddles = value
+        if state.enabled then createWeather() end
+    end,
+})
+
+local characterConnection = LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    if state.enabled then createWeather() end
+end)
+
+Library:OnUnload(function()
+    state.enabled = false
+    cleanupEffects()
+    restoreLighting()
+    if characterConnection then characterConnection:Disconnect() end
+end)
+
+-- ==========================================
 -- Misc 탭 (Device Spoof, Skin Changer & Hit Sound)
 -- ==========================================
 local Group = Tabs.Misc:AddLeftGroupbox('Device Spoofing')
