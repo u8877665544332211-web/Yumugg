@@ -2472,7 +2472,7 @@ local LocalPlayer = Players.LocalPlayer
 -- 기본값
 getgenv().HitNotifyEnabled = true
 getgenv().HitNotifyDuration = 3
-getgenv().HitNotifyPosition = '오른쪽 아래'
+getgenv().HitNotifyPosition = 'Bottom right'
 getgenv().HitNotifyTitle = 'Hit!'
 getgenv().HitNotifyFormat = 'hit for "{name}" {damage}'
 
@@ -2487,15 +2487,15 @@ NotificationGui.Parent = LocalPlayer:WaitForChild('PlayerGui')
 
 local function getNotifyAnchor()
     local pos = getgenv().HitNotifyPosition
-    if pos == '화면 중앙' then
+    if pos == 'Center of the screen' then
         return UDim2.new(0.5, 0, 0.5, 0), Vector2.new(0.5, 0.5), -1
-    elseif pos == '오른쪽 위' then
+    elseif pos == 'Top right' then
         return UDim2.new(1, -20, 0, 20), Vector2.new(1, 0), 1
-    elseif pos == '왼쪽 위' then
+    elseif pos == 'Top left' then
         return UDim2.new(0, 20, 0, 20), Vector2.new(0, 0), 1
-    elseif pos == '오른쪽 아래' then
+    elseif pos == 'Bottom right' then
         return UDim2.new(1, -20, 1, -20), Vector2.new(1, 1), -1
-    elseif pos == '왼쪽 아래' then
+    elseif pos == 'Bottom left' then
         return UDim2.new(0, 20, 1, -20), Vector2.new(0, 1), -1
     end
     return UDim2.new(1, -20, 1, -20), Vector2.new(1, 1), -1
@@ -2686,7 +2686,7 @@ RightGroupBox:AddSlider('HitNotifyDuration', {
 getgenv().HitNotifyDuration = 3
 
 RightGroupBox:AddDropdown('HitNotifyPosition', {
-    Values = { '화면 중앙', '오른쪽 위', '왼쪽 위', '오른쪽 아래', '왼쪽 아래' },
+    Values = { 'Center of the screen', 'Top right', 'Top left', 'Bottom right', 'Bottom left' },
     Default = 4,
     Multi = false,
     Text = '알림 위치',
