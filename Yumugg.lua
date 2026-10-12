@@ -2460,6 +2460,267 @@ SkinBox:AddButton('Unlock All', function()
     end)
 end)
 
+--============================================================
+-- Hit Notify - 이식용 코드
+-- 전제: Library, Window, MainTab(또는 원하는 탭)이 이미 존재
+--============================================================
+
+local TweenService = game:GetService('TweenService')
+local Players = game:GetService('Players')
+local LocalPlayer = Players.LocalPlayer
+
+-- 기본값
+getgenv().HitNotifyEnabled = true
+getgenv().HitNotifyDuration = 3
+getgenv().HitNotifyPosition = '오른쪽 아래'
+getgenv().HitNotifyTitle = 'Hit!'
+getgenv().HitNotifyFormat = 'hit for "{name}" {damage}'
+
+--============================================================
+-- 커스텀 Notify GUI
+--============================================================
+local NotificationGui = Instance.new('ScreenGui')
+NotificationGui.Name = 'HitNotifyGui'
+NotificationGui.ResetOnSpawn = false
+NotificationGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+NotificationGui.Parent = LocalPlayer:WaitForChild('PlayerGui')
+
+local function getNotifyAnchor()
+    local pos = getgenv().HitNotifyPosition
+    if pos == '화면 중앙' then
+        return UDim2.new(0.5, 0, 0.5, 0), Vector2.new(0.5, 0.5), -1
+    elseif pos == '오른쪽 위' then
+        return UDim2.new(1, -20, 0, 20), Vector2.new(1, 0), 1
+    elseif pos == '왼쪽 위' then
+        return UDim2.new(0, 20, 0, 20), Vector2.new(0, 0), 1
+    elseif pos == '오른쪽 아래' then
+        return UDim2.new(1, -20, 1, -20), Vector2.new(1, 1), -1
+    elseif pos == '왼쪽 아래' then
+        return UDim2.new(0, 20, 1, -20), Vector2.new(0, 1), -1
+    end
+    return UDim2.new(1, -20, 1, -20), Vector2.new(1, 1), -1
+end
+
+local activeNotifies = {}
+
+local function reflowNotifies()
+    local basePos, anchor, direction = getNotifyAnchor()
+    local offsetY = 0
+    for _, data in ipairs(activeNotifies) do
+        if data.frame and data.frame.Parent then
+            local targetPos = basePos + UDim2.new(0, 0, 0, offsetY * direction)
+            TweenService:Create(data.frame,
+                TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                { Position = targetPos }
+            ):Play()
+            offsetY = offsetY + data.frame.AbsoluteSize.Y + 8
+        end
+    end
+end
+
+local function formatMessage(name, damage)
+    local fmt = getgenv().HitNotifyFormat or 'hit for "{name}" {damage}'
+    fmt = fmt:gsub('{name}', name)
+    fmt = fmt:gsub('{damage}', tostring(damage))
+    return fmt
+end
+
+local function sendHitNotify(victimName, damage)
+    local basePos, anchor, direction = getNotifyAnchor()
+    local duration = getgenv().HitNotifyDuration or 3
+    local titleText = getgenv().HitNotifyTitle or 'Hit!'
+    local bodyText = formatMessage(victimName, math.floor(damage))
+
+    local frame = Instance.new('Frame')
+    frame.Size = UDim2.new(0, 300, 0, 60)
+    frame.AnchorPoint = anchor
+    frame.Position = basePos + UDim2.new(0, 0, 0, direction * -30)
+    frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    frame.BackgroundTransparency = 0.1
+    frame.BorderSizePixel = 0
+    frame.ZIndex = 100
+
+    local corner = Instance.new('UICorner')
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = frame
+
+    local accent = Instance.new('Frame')
+    accent.Size = UDim2.new(0, 4, 1, 0)
+    accent.Position = UDim2.new(0, 0, 0, 0)
+    accent.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+    accent.BorderSizePixel = 0
+    accent.ZIndex = 101
+    accent.Parent = frame
+
+    local accentCorner = Instance.new('UICorner')
+    accentCorner.CornerRadius = UDim.new(0, 6)
+    accentCorner.Parent = accent
+
+    local title = Instance.new('TextLabel')
+    title.Size = UDim2.new(1, -20, 0, 20)
+    title.Position = UDim2.new(0, 14, 0, 8)
+    title.BackgroundTransparency = 1
+    title.Text = titleText
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 15
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 101
+    title.Parent = frame
+
+    local body = Instance.new('TextLabel')
+    body.Size = UDim2.new(1, -20, 0, 20)
+    body.Position = UDim2.new(0, 14, 0, 30)
+    body.BackgroundTransparency = 1
+    body.Text = bodyText
+    body.TextColor3 = Color3.fromRGB(200, 200, 200)
+    body.TextSize = 13
+    body.Font = Enum.Font.Gotham
+    body.TextXAlignment = Enum.TextXAlignment.Left
+    body.TextWrapped = true
+    body.ZIndex = 101
+    body.Parent = frame
+
+    frame.Parent = NotificationGui
+
+    local entry = { frame = frame }
+    table.insert(activeNotifies, 1, entry)
+    reflowNotifies()
+
+    frame.BackgroundTransparency = 1
+    title.TextTransparency = 1
+    body.TextTransparency = 1
+    accent.BackgroundTransparency = 1
+
+    TweenService:Create(frame, TweenInfo.new(0.25), { BackgroundTransparency = 0.1 }):Play()
+    TweenService:Create(title, TweenInfo.new(0.25), { TextTransparency = 0 }):Play()
+    TweenService:Create(body, TweenInfo.new(0.25), { TextTransparency = 0 }):Play()
+    TweenService:Create(accent, TweenInfo.new(0.25), { BackgroundTransparency = 0 }):Play()
+
+    task.delay(duration, function()
+        local out = TweenService:Create(frame, TweenInfo.new(0.25), { BackgroundTransparency = 1 })
+        TweenService:Create(title, TweenInfo.new(0.25), { TextTransparency = 1 }):Play()
+        TweenService:Create(body, TweenInfo.new(0.25), { TextTransparency = 1 }):Play()
+        TweenService:Create(accent, TweenInfo.new(0.25), { BackgroundTransparency = 1 }):Play()
+        out:Play()
+        out.Completed:Wait()
+
+        frame:Destroy()
+        for i, data in ipairs(activeNotifies) do
+            if data == entry then
+                table.remove(activeNotifies, i)
+                break
+            end
+        end
+        reflowNotifies()
+    end)
+end
+
+--============================================================
+-- 데미지 감지
+--============================================================
+local function setupHitDetection(targetPlayer)
+    local character = targetPlayer.Character
+    if not character then return end
+
+    local humanoid = character:FindFirstChild('Humanoid')
+    if not humanoid then return end
+
+    local lastHealth = humanoid.Health
+
+    humanoid.HealthChanged:Connect(function(newHealth)
+        if newHealth < lastHealth then
+            if getgenv().HitNotifyEnabled then
+                local damage = lastHealth - newHealth
+                sendHitNotify(targetPlayer.Name, damage)
+            end
+        end
+        lastHealth = newHealth
+    end)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        setupHitDetection(player)
+        player.CharacterAdded:Connect(function()
+            task.wait(1)
+            setupHitDetection(player)
+        end)
+    end
+end
+
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        task.wait(1)
+        setupHitDetection(player)
+    end)
+end)
+
+--============================================================
+-- LinoriaLib UI (탭 변수는 네 스크립트에 맞게 수정)
+--============================================================
+-- 예: local MainTab = Tabs.Main  -- 네 스크립트에서 이미 만든 탭 사용
+
+local RightGroupBox = Tabs.Visuals:AddRightGroupbox('Hit Notify')
+
+RightGroupBox:AddToggle('HitNotifyEnabled', {
+    Text = 'Hit Notify 사용',
+    Default = true,
+    Tooltip = '끄면 데미지가 들어가도 알림이 뜨지 않습니다.',
+    Callback = function(Value)
+        getgenv().HitNotifyEnabled = Value
+    end
+})
+getgenv().HitNotifyEnabled = true
+
+RightGroupBox:AddSlider('HitNotifyDuration', {
+    Text = '표시 시간 (초)',
+    Default = 3,
+    Min = 1,
+    Max = 10,
+    Rounding = 1,
+    Callback = function(Value)
+        getgenv().HitNotifyDuration = Value
+    end
+})
+getgenv().HitNotifyDuration = 3
+
+RightGroupBox:AddDropdown('HitNotifyPosition', {
+    Values = { '화면 중앙', '오른쪽 위', '왼쪽 위', '오른쪽 아래', '왼쪽 아래' },
+    Default = 4,
+    Multi = false,
+    Text = '알림 위치',
+    Callback = function(Value)
+        getgenv().HitNotifyPosition = Value
+        reflowNotifies()
+    end
+})
+getgenv().HitNotifyPosition = '오른쪽 아래'
+
+RightGroupBox:AddInput('HitNotifyTitle', {
+    Text = '알림 제목',
+    Default = 'Hit!',
+    Placeholder = 'Hit!',
+    Numeric = false,
+    Finished = false,
+    Callback = function(Value)
+        getgenv().HitNotifyTitle = Value
+    end
+})
+getgenv().HitNotifyTitle = 'Hit!'
+
+RightGroupBox:AddInput('HitNotifyFormat', {
+    Text = '알림 문구 ({name}, {damage} 사용)',
+    Default = 'hit for "{name}" {damage}',
+    Placeholder = 'hit for "{name}" {damage}',
+    Numeric = false,
+    Finished = false,
+    Callback = function(Value)
+        getgenv().HitNotifyFormat = Value
+    end
+})
+getgenv().HitNotifyFormat = 'hit for "{name}" {damage}'
+
 -- ==========================================
 -- Hit Sound 로직 및 LinoriaLib 그룹박스 통합
 -- ==========================================
@@ -2621,25 +2882,6 @@ HitSoundGroup:AddToggle('HitSoundRemoveDefault', {
     Default = HitSoundConfig.RemoveDefaultSound,
     Callback = function(Value)
         HitSoundConfig.RemoveDefaultSound = Value
-    end
-})
-
-HitSoundGroup:AddToggle('HitSoundNotifyEnable', {
-    Text = 'Hit Notify',
-    Default = HitSoundConfig.NotifyEnable,
-    Callback = function(Value)
-        HitSoundConfig.NotifyEnable = Value
-    end
-})
-
-HitSoundGroup:AddSlider('HitSoundNotifyDuration', {
-    Text = 'Notify Duration',
-    Default = HitSoundConfig.NotifyDuration,
-    Min = 1,
-    Max = 5,
-    Rounding = 1,
-    Callback = function(Value)
-        HitSoundConfig.NotifyDuration = Value
     end
 })
 
