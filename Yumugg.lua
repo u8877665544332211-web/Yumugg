@@ -1978,6 +1978,9 @@ EmoteGroup:AddSlider('EmoteSpeedSlider', {
 -- ==========================================
 local WeatherBox = Tabs.Visuals:AddLeftGroupbox("Weather")
 local EffectsBox = Tabs.Visuals:AddRightGroupbox("Extra Effects")
+
+-- InfoBox 그룹박스 정의 추가
+local InfoBox = Tabs.Visuals:AddLeftGroupbox("Weather Info")
 InfoBox:AddLabel("Client-side visual effects only.", true)
 InfoBox:AddLabel("This does not change the server's weather.", true)
 
