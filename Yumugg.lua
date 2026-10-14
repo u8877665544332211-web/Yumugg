@@ -40,14 +40,17 @@ local Tabs = {
     Setting = Window:AddTab('Setting')
 }
 
+-- ============================================================
+-- 헬퍼
+-- ============================================================
 local _0l1lOIIII0 = true
 
 local function is_teammate(player)
     if not _0l1lOIIII0 then return false end
-    local _357_939 = LocalPlayer:GetAttribute("TeamID")
-    local L880_33 = player:GetAttribute("TeamID")
-    if _357_939 == nil or L880_33 == nil then return false end
-    return L880_33 == _357_939
+    local a = LocalPlayer:GetAttribute("TeamID")
+    local b = player:GetAttribute("TeamID")
+    if a == nil or b == nil then return false end
+    return a == b
 end
 
 local function get_character(playerOrChar)
@@ -57,14 +60,14 @@ local function get_character(playerOrChar)
     end
     if not char then return true end
     if char:FindFirstChildOfClass("ForceField") then return true end
-    local __BfgstqWnead = char:FindFirstChild("HumanoidRootPart")
-    if __BfgstqWnead and __BfgstqWnead:FindFirstChild("Attachment") then return true end
-    local _IlO1IIIIOl1I = char:GetAttribute("Immune") or char:GetAttribute("Invincible") or char:GetAttribute("IsImmune")
-    if _IlO1IIIIOl1I == true then return true end
-    local a87b18c82 = char:FindFirstChildOfClass("Humanoid")
-    if a87b18c82 then
-        local _7665x159 = a87b18c82:GetAttribute("Immune") or a87b18c82:GetAttribute("Invincible")
-        if _7665x159 == true then return true end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hrp and hrp:FindFirstChild("Attachment") then return true end
+    local flag = char:GetAttribute("Immune") or char:GetAttribute("Invincible") or char:GetAttribute("IsImmune")
+    if flag == true then return true end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        local f2 = hum:GetAttribute("Immune") or hum:GetAttribute("Invincible")
+        if f2 == true then return true end
     end
     return false
 end
@@ -72,44 +75,100 @@ end
 local function get_player_from_part(player)
     local char = player and player.Character
     if not char then return false end
-    local _8898x144 = {"Reflecting", "IsReflecting", "BulletReflect", "Reflect", "Deflecting", "Parrying"}
-    for _, a in ipairs(_8898x144) do
-        local _01O001l00 = char:GetAttribute(a)
-        if _01O001l00 == true or _01O001l00 == 1 or _01O001l00 == "true" then return true end
+    local flags = {"Reflecting","IsReflecting","BulletReflect","Reflect","Deflecting","Parrying"}
+    for _, k in ipairs(flags) do
+        local v = char:GetAttribute(k)
+        if v == true or v == 1 or v == "true" then return true end
     end
     return false
 end
 
--- ==========================================
--- Desync & Ragebot Main Logic 변수 정의
--- ==========================================
-local _2631x704 = true
+-- ============================================================
+-- Knife 장착 여부 감지
+-- ============================================================
+local function has_knife_equipped(player)
+    if not player or not player.Character then return false end
+    local char = player.Character
+
+    -- 1) 캐릭터 내 무기 이름/속성 검사
+    for _, obj in ipairs(char:GetChildren()) do
+        local name = obj.Name
+        if typeof(name) == "string" then
+            local lower = string.lower(name)
+            if string.find(lower, "knife", 1, true) then
+                return true
+            end
+        end
+
+        -- Tool 타입이면 내부 ObjectID도 확인
+        if obj:IsA("Tool") then
+            local ok, id = pcall(function() return obj:GetAttribute("ObjectID") end)
+            if ok and typeof(id) == "string" and string.find(string.lower(id), "knife", 1, true) then
+                return true
+            end
+            local ok2, id2 = pcall(function()
+                return obj:FindFirstChild("ObjectID") and obj.ObjectID.Value
+            end)
+            if ok2 and typeof(id2) == "string" and string.find(string.lower(id2), "knife", 1, true) then
+                return true
+            end
+        end
+    end
+
+    -- 2) 캐릭터 속성(EquippedItem 등) 문자열 검사
+    for _, attrName in ipairs({"EquippedItem", "Weapon", "CurrentWeapon", "WeaponName", "ItemName"}) do
+        local v = char:GetAttribute(attrName)
+        if typeof(v) == "string" and string.find(string.lower(v), "knife", 1, true) then
+            return true
+        end
+    end
+
+    -- 3) Humanoid 속성도 확인
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        for _, attrName in ipairs({"EquippedItem", "Weapon", "CurrentWeapon"}) do
+            local v = hum:GetAttribute(attrName)
+            if typeof(v) == "string" and string.find(string.lower(v), "knife", 1, true) then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+-- ============================================================
+-- 변수
+-- ============================================================
+local _2631x704  = true
 local flyEnabled = false
-local _8080x566 = 50000000
-local _lII0ll = false
-local _4012x732 = 0.25
-local a85b57c99 = 0.1
-local L555_61 = false
-local __lhiRNgvZ = 3 
-local a73b35c96 = nil
+local _8080x566  = 50000000
+local _lII0ll    = false
+local _4012x732  = 0.25
+local a85b57c99  = 0.1
+local L555_61    = false
+local __lhiRNgvZ = 3
+local a73b35c96  = nil
 
--- Desync 위치/속도 버퍼
-local L389_46 = nil
-local L273_20 = nil
-local _10O0lO = nil
+local L389_46    = nil
+local L273_20    = nil
+local _10O0lO    = nil
 
+-- ============================================================
+-- Desync 타이밍 루프
+-- ============================================================
 task.spawn(function()
     while true do
         if _lII0ll and L555_61 then
             _2631x704 = true
-            local _3661x412 = a85b57c99
-            if typeof(_3661x412) ~= "number" or _3661x412 < 0.01 then _3661x412 = 0.01 end
-            task.wait(_3661x412)
+            local atk = a85b57c99
+            if typeof(atk) ~= "number" or atk < 0.01 then atk = 0.01 end
+            task.wait(atk)
             if _lII0ll and L555_61 then
                 _2631x704 = false
-                local _0xdee6 = _4012x732
-                if typeof(_0xdee6) ~= "number" or _0xdee6 < 0.01 then _0xdee6 = 0.01 end
-                task.wait(_0xdee6)
+                local hid = _4012x732
+                if typeof(hid) ~= "number" or hid < 0.01 then hid = 0.01 end
+                task.wait(hid)
             else
                 _2631x704 = true
             end
@@ -120,6 +179,9 @@ task.spawn(function()
     end
 end)
 
+-- ============================================================
+-- 타겟 헤드 반환
+-- ============================================================
 local function get_character_root(char)
     if not char then return nil end
     return char:FindFirstChild("HitboxHead")
@@ -127,45 +189,48 @@ local function get_character_root(char)
         or char:FindFirstChild("Head")
 end
 
+-- ============================================================
+-- Remote Attack Engine
+-- ============================================================
 local v71190 = function(on) end
 
--- Remote Attack Engine
 task.spawn(function()
     pcall(function()
-        local _3213x326 = LocalPlayer.PlayerScripts
-        local a66b43c59, _9817x625 = pcall(require, _3213x326.Controllers.FighterController)
-        local _0xd857, v27885     = pcall(require, ReplicatedStorage.Modules.EnumLibrary)
-        local __MAwXiJM    = ReplicatedStorage.Remotes.Replication.Fighter.UseItem
-        local _IIOl1OI11O00; pcall(function() _IIOl1OI11O00 = v27885:ToEnum("StartShooting") end)
+        local ps = LocalPlayer.PlayerScripts
+        local okFighter, FighterController = pcall(require, ps.Controllers.FighterController)
+        local okEnum, EnumLibrary           = pcall(require, ReplicatedStorage.Modules.EnumLibrary)
+        local UseItemRemote = ReplicatedStorage.Remotes.Replication.Fighter.UseItem
+        local StartShooting
+        pcall(function() StartShooting = EnumLibrary:ToEnum("StartShooting") end)
 
-        local function _5460x742()
-            if not (a66b43c59 and _9817x625) then return nil end
-            local _0x3584 = _9817x625.LocalFighter; if not _0x3584 then return nil end
-            local _549_282 = _0x3584.EquippedItem; if not _549_282 then return nil end
-            local L704_40, L987_53 = pcall(function() return _549_282:Get("ObjectID") end)
-            if L704_40 and L987_53 then return L987_53 end
-            L704_40, L987_53 = pcall(function() return _549_282.Data and _549_282.Data.ObjectID end)
-            return L704_40 and L987_53 or nil
+        local function getObjectID()
+            if not (okFighter and FighterController) then return nil end
+            local lf = FighterController.LocalFighter; if not lf then return nil end
+            local item = lf.EquippedItem;              if not item then return nil end
+            local ok, id = pcall(function() return item:Get("ObjectID") end)
+            if ok and id then return id end
+            ok, id = pcall(function() return item.Data and item.Data.ObjectID end)
+            return ok and id or nil
         end
 
-        local function teleport_character(originPos, _IOI1l0I100)
-            local L501_16 = _IOI1l0I100.Position
-            local _0xb60d = CFrame.lookAt(originPos, L501_16)
-            local _0Il0I11O, _1897x442, _0xefad = _0xb60d:ToOrientation()
-            local a49b75c71 = {
+        local function buildPayload(originPos, targetPart)
+            local tPos = targetPart.Position
+            local lookCF = CFrame.lookAt(originPos, tPos)
+            local rx, ry, rz = lookCF:ToOrientation()
+            local rot = {
                 [utf8.char(0)] = originPos.X, [utf8.char(1)] = originPos.Y, [utf8.char(2)] = originPos.Z,
-                [utf8.char(3)] = _0Il0I11O, [utf8.char(4)] = _1897x442, [utf8.char(5)] = _0xefad,
+                [utf8.char(3)] = rx,          [utf8.char(4)] = ry,          [utf8.char(5)] = rz,
             }
-            local a12b15c22 = _IOI1l0I100.CFrame:ToObjectSpace(CFrame.new(L501_16))
-            local _lOl1lI0llll0, _1l00IOl101Il, __CtOClXPOnz = a12b15c22:ToOrientation()
+            local rel = targetPart.CFrame:ToObjectSpace(CFrame.new(tPos))
+            local ox, oy, oz = rel:ToOrientation()
             return {
                 [utf8.char(1)] = {
-                    [utf8.char(0)] = a49b75c71,
-                    [utf8.char(1)] = a49b75c71,
-                    [utf8.char(2)] = _IOI1l0I100,
+                    [utf8.char(0)] = rot,
+                    [utf8.char(1)] = rot,
+                    [utf8.char(2)] = targetPart,
                     [utf8.char(3)] = {
-                        [utf8.char(0)] = a12b15c22.X, [utf8.char(1)] = a12b15c22.Y, [utf8.char(2)] = a12b15c22.Z,
-                        [utf8.char(3)] = _lOl1lI0llll0, [utf8.char(4)] = _1l00IOl101Il, [utf8.char(5)] = __CtOClXPOnz,
+                        [utf8.char(0)] = rel.X, [utf8.char(1)] = rel.Y, [utf8.char(2)] = rel.Z,
+                        [utf8.char(3)] = ox,    [utf8.char(4)] = oy,    [utf8.char(5)] = oz,
                     },
                 },
             }
@@ -175,29 +240,29 @@ task.spawn(function()
             if _10O0lO then _10O0lO:Disconnect(); _10O0lO = nil end
             if not on then return end
 
-            local _l0OIIO = nil
+            local cachedID = nil
             _10O0lO = RunService.Heartbeat:Connect(function()
                 if not L555_61 or not _2631x704 then return end
                 if not a73b35c96 or not a73b35c96.Parent then return end
 
-                local a20b32c46 = a73b35c96:FindFirstAncestorOfClass("Model") or a73b35c96.Parent
-                local a14b42c70 = Players:GetPlayerFromCharacter(a20b32c46)
-                if not a14b42c70 or a14b42c70 == LocalPlayer then return end
-                if is_teammate(a14b42c70) or get_character(a14b42c70) or get_player_from_part(a14b42c70) then return end
+                local model = a73b35c96:FindFirstAncestorOfClass("Model") or a73b35c96.Parent
+                local plr   = Players:GetPlayerFromCharacter(model)
+                if not plr or plr == LocalPlayer then return end
+                if is_teammate(plr) or get_character(plr) or get_player_from_part(plr) then return end
 
-                local _lO00OO0 = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if not _lO00OO0 then return end
+                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if not hrp then return end
 
-                local _0xf72a = _5460x742()
-                if _0xf72a then _l0OIIO = _0xf72a else _0xf72a = _l0OIIO end
-                if not _0xf72a then return end
+                local id = getObjectID()
+                if id then cachedID = id else id = cachedID end
+                if not id then return end
 
-                local L405_52 = a73b35c96
-                local _0Ol00I01OO0l = L405_52.Position + Vector3.new(0, 0.1, 0)
-                local v84604 = teleport_character(_0Ol00I01OO0l, L405_52)
+                local target = a73b35c96
+                local origin = target.Position + Vector3.new(0, 0.1, 0)
+                local payload = buildPayload(origin, target)
                 pcall(function()
-                    if _0xf72a and _IIOl1OI11O00 then
-                        __MAwXiJM:FireServer(_0xf72a, _IIOl1OI11O00, v84604, nil)
+                    if id and StartShooting then
+                        UseItemRemote:FireServer(id, StartShooting, payload, nil)
                     end
                 end)
             end)
@@ -205,24 +270,28 @@ task.spawn(function()
     end)
 end)
 
-local function find_closest_target()
-    local v83548 = true
+-- ============================================================
+-- 무기 장착 여부
+-- ============================================================
+local function hasWeaponEquipped()
+    local ok = true
     pcall(function()
-        local _3213x326 = LocalPlayer.PlayerScripts
-        local _0x9ec3, _0lO010OIIO = pcall(require, _3213x326.Controllers.FighterController)
-        if not _0x9ec3 or not _0lO010OIIO or not _0lO010OIIO.LocalFighter then return end
-        local _549_282 = _0lO010OIIO.LocalFighter.EquippedItem
-        if not _549_282 then v83548 = false; return end
+        local ps = LocalPlayer.PlayerScripts
+        local s, fc = pcall(require, ps.Controllers.FighterController)
+        if not s or not fc or not fc.LocalFighter then return end
+        if not fc.LocalFighter.EquippedItem then ok = false end
     end)
-    return v83548
+    return ok
 end
 
--- Desync 위치 복구 핸들러
+-- ============================================================
+-- Desync 위치 복구
+-- ============================================================
 local function restore_desync_position()
-    local __BfgstqWnead = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not __BfgstqWnead or not L389_46 then return end
-    __BfgstqWnead.CFrame = L389_46
-    if L273_20 then __BfgstqWnead.AssemblyLinearVelocity = L273_20 end
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp or not L389_46 then return end
+    hrp.CFrame = L389_46
+    if L273_20 then hrp.AssemblyLinearVelocity = L273_20 end
     L389_46 = nil
     L273_20 = nil
 end
@@ -231,67 +300,79 @@ pcall(function() RunService:UnbindFromRenderStep("RestoreDesyncPerfect") end)
 pcall(function() RunService:BindToRenderStep("RestoreDesyncPerfect", 0, restore_desync_position) end)
 RunService.RenderStepped:Connect(restore_desync_position)
 
--- Heartbeat Desync Teleport 루프
+-- ============================================================
+-- Heartbeat Desync Teleport (Knife 감지 시 아래로 텔포)
+-- ============================================================
 RunService.Heartbeat:Connect(function()
     pcall(function()
-        local __BfgstqWnead = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not __BfgstqWnead then return end
+        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
 
         if L389_46 then restore_desync_position() end
 
-        -- Target Attack Teleport (Ragebot Desync)
-        if L555_61 and _2631x704 and a73b35c96 and find_closest_target() then
-            local _3921x508 = a73b35c96:FindFirstAncestorOfClass("Model") or a73b35c96.Parent
-            local _456_638 = Players:GetPlayerFromCharacter(_3921x508)
-            if _456_638 and get_player_from_part(_456_638) then return end
-            
-            L389_46 = __BfgstqWnead.CFrame
-            L273_20 = __BfgstqWnead.AssemblyLinearVelocity
-            
-            local L501_16 = a73b35c96.Position
-            local _7279x484 = L501_16 + Vector3.new(0, __lhiRNgvZ, 0)
-            __BfgstqWnead.CFrame = CFrame.new(_7279x484, L501_16)
+        if L555_61 and _2631x704 and a73b35c96 and hasWeaponEquipped() then
+            local model = a73b35c96:FindFirstAncestorOfClass("Model") or a73b35c96.Parent
+            local plr   = Players:GetPlayerFromCharacter(model)
+            if plr and get_player_from_part(plr) then return end
+
+            L389_46 = hrp.CFrame
+            L273_20 = hrp.AssemblyLinearVelocity
+
+            local tPos = a73b35c96.Position
+            local goal
+            if plr and has_knife_equipped(plr) then
+                -- 🔽 상대가 Knife를 들고 있으면 아래에서 타격
+                goal = tPos - Vector3.new(0, __lhiRNgvZ, 0)
+            else
+                -- 🔼 기본은 위에서 타격
+                goal = tPos + Vector3.new(0, __lhiRNgvZ, 0)
+            end
+            hrp.CFrame = CFrame.new(goal, tPos)
             return
         end
 
-        -- Orbit Fly Desync
         if flyEnabled then
-            L389_46 = __BfgstqWnead.CFrame
-            L273_20 = __BfgstqWnead.AssemblyLinearVelocity
-            local _687_388 = Vector3.new(math.random(-100, 100), math.random(-100, 100), math.random(-100, 100)).Unit
-            local _7279x484 = __BfgstqWnead.Position + _687_388 * _8080x566
-            local _OIOO0O1 = L389_46 - L389_46.Position
-            __BfgstqWnead.CFrame = CFrame.new(_7279x484) * _OIOO0O1
+            L389_46 = hrp.CFrame
+            L273_20 = hrp.AssemblyLinearVelocity
+            local dir = Vector3.new(math.random(-100,100), math.random(-100,100), math.random(-100,100)).Unit
+            local goal = hrp.Position + dir * _8080x566
+            local rotOnly = L389_46 - L389_46.Position
+            hrp.CFrame = CFrame.new(goal) * rotOnly
         end
     end)
 end)
 
+-- ============================================================
 -- 타겟 탐색 스레드
+-- ============================================================
 task.spawn(function()
     while true do
         task.wait(0.01)
         if L555_61 and _2631x704 then
-            local __xxEEAQiVz = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position or Vector3.zero
-            local _338_977 = nil
-            local __UHvhQn = math.huge
+            local myPos = LocalPlayer.Character
+                and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                and LocalPlayer.Character.HumanoidRootPart.Position
+                or Vector3.zero
+
+            local best, bestDist = nil, math.huge
 
             for _, player in pairs(Players:GetPlayers()) do
                 if player ~= LocalPlayer and player.Character and not is_teammate(player) then
                     if get_character(player) or get_player_from_part(player) then continue end
-                    local __BfgstqWnead = player.Character:FindFirstChild("HumanoidRootPart")
-                    local a87b18c82 = player.Character:FindFirstChild("Humanoid")
-                    if __BfgstqWnead and a87b18c82 and a87b18c82.Health > 0 then
-                        local _100l10O0II = (Vector3.new(__xxEEAQiVz.X, 0, __xxEEAQiVz.Z) - Vector3.new(__BfgstqWnead.Position.X, 0, __BfgstqWnead.Position.Z)).Magnitude
-                        if _100l10O0II < __UHvhQn then
-                            __UHvhQn = _100l10O0II
-                            _338_977 = player
+                    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                    local hum = player.Character:FindFirstChild("Humanoid")
+                    if hrp and hum and hum.Health > 0 then
+                        local d = (Vector3.new(myPos.X, 0, myPos.Z) - Vector3.new(hrp.Position.X, 0, hrp.Position.Z)).Magnitude
+                        if d < bestDist then
+                            bestDist = d
+                            best = player
                         end
                     end
                 end
             end
 
-            if _338_977 and _338_977.Character then
-                a73b35c96 = get_character_root(_338_977.Character)
+            if best and best.Character then
+                a73b35c96 = get_character_root(best.Character)
             else
                 a73b35c96 = nil
             end
