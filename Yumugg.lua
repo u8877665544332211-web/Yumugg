@@ -84,60 +84,6 @@ local function get_player_from_part(player)
 end
 
 -- ============================================================
--- Knife 장착 여부 감지
--- ============================================================
-local function has_knife_equipped(player)
-    if not player or not player.Character then return false end
-    local char = player.Character
-
-    -- 1) 캐릭터 내 무기 이름/속성 검사
-    for _, obj in ipairs(char:GetChildren()) do
-        local name = obj.Name
-        if typeof(name) == "string" then
-            local lower = string.lower(name)
-            if string.find(lower, "knife", 1, true) then
-                return true
-            end
-        end
-
-        -- Tool 타입이면 내부 ObjectID도 확인
-        if obj:IsA("Tool") then
-            local ok, id = pcall(function() return obj:GetAttribute("ObjectID") end)
-            if ok and typeof(id) == "string" and string.find(string.lower(id), "knife", 1, true) then
-                return true
-            end
-            local ok2, id2 = pcall(function()
-                return obj:FindFirstChild("ObjectID") and obj.ObjectID.Value
-            end)
-            if ok2 and typeof(id2) == "string" and string.find(string.lower(id2), "knife", 1, true) then
-                return true
-            end
-        end
-    end
-
-    -- 2) 캐릭터 속성(EquippedItem 등) 문자열 검사
-    for _, attrName in ipairs({"EquippedItem", "Weapon", "CurrentWeapon", "WeaponName", "ItemName"}) do
-        local v = char:GetAttribute(attrName)
-        if typeof(v) == "string" and string.find(string.lower(v), "knife", 1, true) then
-            return true
-        end
-    end
-
-    -- 3) Humanoid 속성도 확인
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        for _, attrName in ipairs({"EquippedItem", "Weapon", "CurrentWeapon"}) do
-            local v = hum:GetAttribute(attrName)
-            if typeof(v) == "string" and string.find(string.lower(v), "knife", 1, true) then
-                return true
-            end
-        end
-    end
-
-    return false
-end
-
--- ============================================================
 -- 변수
 -- ============================================================
 local _2631x704  = true
@@ -301,7 +247,7 @@ pcall(function() RunService:BindToRenderStep("RestoreDesyncPerfect", 0, restore_
 RunService.RenderStepped:Connect(restore_desync_position)
 
 -- ============================================================
--- Heartbeat Desync Teleport (Knife 감지 시 아래로 텔포)
+-- Heartbeat Desync Teleport (수정 완료)
 -- ============================================================
 RunService.Heartbeat:Connect(function()
     pcall(function()
@@ -319,14 +265,31 @@ RunService.Heartbeat:Connect(function()
             L273_20 = hrp.AssemblyLinearVelocity
 
             local tPos = a73b35c96.Position
-            local goal
-            if plr and has_knife_equipped(plr) then
-                -- 🔽 상대가 Knife를 들고 있으면 아래에서 타격
-                goal = tPos - Vector3.new(0, __lhiRNgvZ, 0)
-            else
-                -- 🔼 기본은 위에서 타격
-                goal = tPos + Vector3.new(0, __lhiRNgvZ, 0)
-            end
+
+            -- 상대방이 칼(Knife)을 들고 있는지 확인
+            local isKnife = false
+            pcall(function()
+                if model then
+                    for _, item in ipairs(model:GetChildren()) do
+                        if item:IsA("Tool") and string.lower(item.Name):find("knife") then
+                            isKnife = true
+                            break
+                        end
+                    end
+                end
+                local charModel = plr and plr.Character
+                if charModel then
+                    local tool = charModel:FindFirstChildOfClass("Tool")
+                    if tool and string.lower(tool.Name):find("knife") then
+                        isKnife = true
+                    end
+                end
+            end)
+
+            -- 칼을 들었으면 아래로(-__lhiRNgvZ), 아니면 위로(+__lhiRNgvZ) 이동
+            local heightOffset = isKnife and -__lhiRNgvZ or __lhiRNgvZ
+            local goal = tPos + Vector3.new(0, heightOffset, 0)
+            
             hrp.CFrame = CFrame.new(goal, tPos)
             return
         end
