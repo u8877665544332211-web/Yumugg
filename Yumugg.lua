@@ -1,11 +1,3 @@
-local repo = 'https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/'
-local Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
-local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))()
-local SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.lua'))()
-
-local Toggles = getgenv().Toggles or Library.Toggles
-local Options = getgenv().Options or Library.Options
-
 -- ==========================================
 -- Services & Local Player 설정
 -- ==========================================
@@ -23,6 +15,14 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 -- Global Config & State Table (통합 관리)
 getgenv().Config = getgenv().Config or {}
 getgenv().State = getgenv().State or {}
+
+local repo = 'https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/'
+local Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
+local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))()
+local SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.lua'))()
+
+local Toggles = getgenv().Toggles or Library.Toggles
+local Options = getgenv().Options or Library.Options
 
 local Window = Library:CreateWindow({
     Title = 'Yumu Enchantment - discord.gg/qTV5c5Fn6',
