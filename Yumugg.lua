@@ -247,7 +247,7 @@ pcall(function() RunService:BindToRenderStep("RestoreDesyncPerfect", 0, restore_
 RunService.RenderStepped:Connect(restore_desync_position)
 
 -- ============================================================
--- Heartbeat Desync Teleport (수정 완료)
+-- Heartbeat Desync Teleport
 -- ============================================================
 RunService.Heartbeat:Connect(function()
     pcall(function()
@@ -265,31 +265,36 @@ RunService.Heartbeat:Connect(function()
             L273_20 = hrp.AssemblyLinearVelocity
 
             local tPos = a73b35c96.Position
-
-            -- 상대방이 칼(Knife)을 들고 있는지 확인
-            local isKnife = false
-            pcall(function()
-                if model then
-                    for _, item in ipairs(model:GetChildren()) do
-                        if item:IsA("Tool") and string.lower(item.Name):find("knife") then
-                            isKnife = true
+            
+            -- [추가/수정] 상대방이 라이벌에서 knife 무기를 들었는지 판별하여 높이 조정 (-7 스터드)
+            local heightOffset = __lhiRNgvZ
+            if plr then
+                local weaponName = nil
+                pcall(function()
+                    local ps = LocalPlayer.PlayerScripts
+                    local _, fc = pcall(require, ps.Controllers.FighterController)
+                    if fc then
+                        local fighter = (fc.GetFighter and fc.GetFighter(plr)) or (fc.Fighters and fc.Fighters[plr])
+                        if fighter and fighter.EquippedItem then
+                            local item = fighter.EquippedItem
+                            weaponName = item.Name or (item.Data and item.Data.Name) or (item.Get and item:Get("Name"))
+                        end
+                    end
+                end)
+                if not weaponName and plr.Character then
+                    for _, child in ipairs(plr.Character:GetChildren()) do
+                        if child:IsA("Tool") then
+                            weaponName = child.Name
                             break
                         end
                     end
                 end
-                local charModel = plr and plr.Character
-                if charModel then
-                    local tool = charModel:FindFirstChildOfClass("Tool")
-                    if tool and string.lower(tool.Name):find("knife") then
-                        isKnife = true
-                    end
+                if weaponName and type(weaponName) == "string" and string.lower(weaponName):find("knife") then
+                    heightOffset = -7
                 end
-            end)
+            end
 
-            -- 칼을 들었으면 아래로(-__lhiRNgvZ), 아니면 위로(+__lhiRNgvZ) 이동
-            local heightOffset = isKnife and -__lhiRNgvZ or __lhiRNgvZ
             local goal = tPos + Vector3.new(0, heightOffset, 0)
-            
             hrp.CFrame = CFrame.new(goal, tPos)
             return
         end
@@ -334,11 +339,7 @@ task.spawn(function()
                 end
             end
 
-            if best and best.Character then
-                a73b35c96 = get_character_root(best.Character)
-            else
-                a73b35c96 = nil
-            end
+            (best and best.Character) and (a73b35c96 = get_character_root(best.Character)) or (a73b35c96 = nil)
         else
             a73b35c96 = nil
         end
