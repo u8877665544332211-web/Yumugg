@@ -3088,7 +3088,7 @@ local character, humanoid, root
 local oldAutoRotate, oldPlatformStand
 
 local function getCharacter()
-    character = Player.Character or Player.CharacterAdded:Wait()
+    character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
     humanoid = character:WaitForChild("Humanoid")
     root = character:WaitForChild("HumanoidRootPart")
 end
@@ -3302,7 +3302,7 @@ MainGroupbox:AddSlider('VerticalSpeed', {
 local SettingsMenu = Tabs.Setting:AddLeftGroupbox('Menu Settings')
 
 SettingsMenu:AddButton('Unload UI', function()
-    pcall(function() Visuals.unload() end)
+    pcall(function() Visuals.disable() end)
     Library:Unload()
 end)
 
