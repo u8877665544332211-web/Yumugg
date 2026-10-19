@@ -3072,9 +3072,9 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
--- 섹스 
+-- 모티븐,플라이
 -- ==========================================
-local MainGroupbox = Tabs.Visuals:AddLeftGroupbox('Movement')
+local MainGroupbox = Tabs.character:AddLeftGroupbox('Movement')
 
 local SPEED = 60
 local VERTICAL_SPEED = 45
