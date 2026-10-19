@@ -3072,6 +3072,231 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
+-- 섹스 
+-- ==========================================
+local MainGroupbox = Tabs.Visuals:AddLeftGroupbox('Movement')
+
+local SPEED = 60
+local VERTICAL_SPEED = 45
+local flying = false
+local noclip = false
+local infinityJump = false
+
+local keys = {}
+local connection
+local character, humanoid, root
+local oldAutoRotate, oldPlatformStand
+
+local function getCharacter()
+    character = Player.Character or Player.CharacterAdded:Wait()
+    humanoid = character:WaitForChild("Humanoid")
+    root = character:WaitForChild("HumanoidRootPart")
+end
+
+getCharacter()
+
+-- Fly 관련 함수
+local function stopFly()
+    flying = false
+
+    if connection then
+        connection:Disconnect()
+        connection = nil
+    end
+
+    if humanoid and humanoid.Parent then
+        humanoid.PlatformStand = oldPlatformStand or false
+        humanoid.AutoRotate = oldAutoRotate ~= false
+        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end
+
+    if root and root.Parent then
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+    end
+end
+
+local function startFly()
+    getCharacter()
+
+    if humanoid.Health <= 0 then
+        return
+    end
+
+    oldAutoRotate = humanoid.AutoRotate
+    oldPlatformStand = humanoid.PlatformStand
+
+    flying = true
+    humanoid.AutoRotate = false
+    humanoid.PlatformStand = true
+
+    connection = RunService.Heartbeat:Connect(function()
+        if not flying then return end
+
+        if not character or not character.Parent
+            or not humanoid or humanoid.Health <= 0
+            or not root or not root.Parent then
+            stopFly()
+            if Toggles.FlyToggle then
+                Toggles.FlyToggle:SetValue(false)
+            end
+            return
+        end
+
+        local camera = workspace.CurrentCamera
+        if not camera then return end
+
+        local velocity = Vector3.zero
+
+        if UIS.TouchEnabled and not UIS.KeyboardEnabled then
+            local move = humanoid.MoveDirection
+            local look = camera.CFrame.LookVector
+            local right = camera.CFrame.RightVector
+
+            local flatLook = Vector3.new(look.X, 0, look.Z)
+            local flatRight = Vector3.new(right.X, 0, right.Z)
+
+            if flatLook.Magnitude > 0.001 then
+                flatLook = flatLook.Unit
+            end
+            if flatRight.Magnitude > 0.001 then
+                flatRight = flatRight.Unit
+            end
+
+            local forward = move:Dot(flatLook)
+            local side = move:Dot(flatRight)
+
+            velocity = look * forward + flatRight * side
+
+            if velocity.Magnitude > 1 then
+                velocity = velocity.Unit
+            end
+
+            velocity *= SPEED
+        else
+            local look = camera.CFrame.LookVector
+            local right = camera.CFrame.RightVector
+
+            local forward = Vector3.new(look.X, 0, look.Z)
+            local side = Vector3.new(right.X, 0, right.Z)
+
+            if forward.Magnitude > 0.001 then
+                forward = forward.Unit
+            end
+            if side.Magnitude > 0.001 then
+                side = side.Unit
+            end
+
+            local move = Vector3.zero
+
+            if keys.W then move += forward end
+            if keys.S then move -= forward end
+            if keys.D then move += side end
+            if keys.A then move -= side end
+
+            if move.Magnitude > 1 then
+                move = move.Unit
+            end
+
+            velocity += move * SPEED
+
+            if keys.E then
+                velocity += Vector3.new(0, VERTICAL_SPEED, 0)
+            end
+            if keys.Q then
+                velocity -= Vector3.new(0, VERTICAL_SPEED, 0)
+            end
+        end
+
+        root.AssemblyLinearVelocity = velocity
+        root.AssemblyAngularVelocity = Vector3.zero
+    end)
+end
+
+-- Noclip 관련 함수
+local function setNoclip(enabled)
+    noclip = enabled
+
+    if not noclip and character then
+        for _, obj in ipairs(character:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                obj.CanCollide = true
+            end
+        end
+    end
+end
+
+RunService.Stepped:Connect(function()
+    if not noclip or not character then return end
+
+    for _, obj in ipairs(character:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            obj.CanCollide = false
+        end
+    end
+end)
+
+-- 비행 토글
+MainGroupbox:AddToggle('FlyToggle', {
+    Text = 'Fly',
+    Default = false,
+    Tooltip = 'Toggles character flight mode',
+    Callback = function(Value)
+        if Value then
+            startFly()
+        else
+            stopFly()
+        end
+    end
+})
+
+-- 노클립 토글
+MainGroupbox:AddToggle('NoclipToggle', {
+    Text = 'Noclip',
+    Default = false,
+    Tooltip = 'Toggles character noclip mode',
+    Callback = function(Value)
+        setNoclip(Value)
+    end
+})
+
+-- 무한 점프 토글 (신규 추가)
+MainGroupbox:AddToggle('InfJumpToggle', {
+    Text = 'Infinity Jump',
+    Default = false,
+    Tooltip = 'Allows you to jump infinitely in the air',
+    Callback = function(Value)
+        infinityJump = Value
+    end
+})
+
+-- 비행 속도 슬라이더
+MainGroupbox:AddSlider('FlySpeed', {
+    Text = 'Fly Speed',
+    Default = 60,
+    Min = 20,
+    Max = 200,
+    Rounding = 0,
+    Tooltip = 'Changes flight movement speed',
+    Callback = function(Value)
+        SPEED = Value
+    end
+})
+
+-- 수직 속도 슬라이더
+MainGroupbox:AddSlider('VerticalSpeed', {
+    Text = 'Vertical Speed',
+    Default = 45,
+    Min = 10,
+    Max = 100,
+    Rounding = 0,
+    Tooltip = 'Changes Q/E up and down speed',
+    Callback = function(Value)
+        VERTICAL_SPEED = Value
+    end
+})
+
+-- ==========================================
 -- Setting 탭 (Config Manager & Theme Manager)
 -- ==========================================
 local SettingsMenu = Tabs.Setting:AddLeftGroupbox('Menu Settings')
