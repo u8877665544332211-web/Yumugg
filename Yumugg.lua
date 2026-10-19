@@ -3270,6 +3270,12 @@ MainGroupbox:AddToggle('InfJumpToggle', {
     end
 })
 
+UIS.JumpRequest:Connect(function()
+    if infinityJump and humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end)
+
 -- 비행 속도 슬라이더
 MainGroupbox:AddSlider('FlySpeed', {
     Text = 'Fly Speed',
