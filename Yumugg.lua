@@ -7,7 +7,7 @@ local Toggles = getgenv().Toggles or Library.Toggles
 local Options = getgenv().Options or Library.Options
 
 -- ==========================================
--- Services & Local Player 설정
+-- Services & Local Player 설정 (수정 부분)
 -- ==========================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -15,6 +15,8 @@ local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
+local UserInputService = game:GetService("UserInputService") -- [추가됨]
+local SoundService = game:GetService("SoundService") -- 날씨 사운드 등에 필요한 서비스도 미리 추가
 local LocalPlayer = Players.LocalPlayer
 local lp = LocalPlayer
 local Camera = Workspace.CurrentCamera or Workspace:WaitForChild("Camera")
