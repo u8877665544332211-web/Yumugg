@@ -3072,7 +3072,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
--- 모티븐,플라이
+-- Character 탭 (Movement: Fly, Noclip, Infinity Jump)
 -- ==========================================
 local MainGroupbox = Tabs.Character:AddLeftGroupbox('Movement')
 
@@ -3148,7 +3148,7 @@ local function startFly()
 
         local velocity = Vector3.zero
 
-        if UIS.TouchEnabled and not UIS.KeyboardEnabled then
+        if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
             local move = humanoid.MoveDirection
             local look = camera.CFrame.LookVector
             local right = camera.CFrame.RightVector
@@ -3260,7 +3260,7 @@ MainGroupbox:AddToggle('NoclipToggle', {
     end
 })
 
--- 무한 점프 토글 (신규 추가)
+-- 무한 점프 토글
 MainGroupbox:AddToggle('InfJumpToggle', {
     Text = 'Infinity Jump',
     Default = false,
@@ -3295,6 +3295,65 @@ MainGroupbox:AddSlider('VerticalSpeed', {
         VERTICAL_SPEED = Value
     end
 })
+
+-- 키 입력 처리 (WASD, Q/E, N단축키, 무한 점프)
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+
+    local name = input.KeyCode.Name
+    if name == "W" or name == "A" or name == "S"
+        or name == "D" or name == "Q" or name == "E" then
+        keys[name] = true
+    end
+
+    -- N키로 노클립 토글 단축키 기능
+    if input.KeyCode == Enum.KeyCode.N then
+        local newState = not noclip
+        setNoclip(newState)
+        if Toggles.NoclipToggle then
+            Toggles.NoclipToggle:SetValue(newState)
+        end
+    end
+
+    -- 스페이스바 입력 시 무한 점프 처리
+    if input.KeyCode == Enum.KeyCode.Space and infinityJump then
+        if humanoid and humanoid.Parent then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    keys[input.KeyCode.Name] = false
+end)
+
+-- 캐릭터 리스폰 연동 처리
+LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+    if flying then
+        stopFly()
+        if Toggles.FlyToggle then
+            Toggles.FlyToggle:SetValue(false)
+        end
+    end
+
+    if noclip then
+        setNoclip(false)
+        if Toggles.NoclipToggle then
+            Toggles.NoclipToggle:SetValue(false)
+        end
+    end
+
+    character = newCharacter
+    humanoid = nil
+    root = nil
+    table.clear(keys)
+
+    task.defer(function()
+        if LocalPlayer.Character == newCharacter then
+            getCharacter()
+        end
+    end)
+end)
 
 -- ==========================================
 -- Setting 탭 (Config Manager & Theme Manager)
