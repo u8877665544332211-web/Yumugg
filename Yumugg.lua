@@ -3373,13 +3373,22 @@ SettingsMenu:AddLabel('Menu Keybind'):AddKeyPicker('MenuKeybind', {
     Text = 'Menu Keybind'
 })
 
+-- 👇 [추가됨] 화면에 현재 설정된 키바인드 목록을 띄워주는 Keybind Menu 토글
+SettingsMenu:AddToggle('KeybindMenuOpen', {
+    Text = 'Keybind Menu',
+    Default = false,
+    Callback = function(Value)
+        Library.KeybindFrame.Visible = Value
+    end
+})
+
 Library.ToggleKeybind = Options.MenuKeybind
 
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
 
 SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({ 'MenuKeybind' })
+SaveManager:SetIgnoreIndexes({ 'MenuKeybind', 'KeybindMenuOpen' }) -- 설정 저장 시 메뉴 키바인드 토글 상태는 무시하도록 추가
 
 ThemeManager:SetFolder('YumuEnchantment')
 SaveManager:SetFolder('YumuEnchantment/configs')
