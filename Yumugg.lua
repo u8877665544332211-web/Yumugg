@@ -490,8 +490,7 @@ SilentAimGroup:AddToggle('SilentAimClosestPart', {
     end
 })
 
-
--- 3. Ragebot 그룹박스 (Combat 탭 기존 항목)
+-- 3. Ragebot 그룹박스 (Combat 탭 기존 항목 + 키바인드 추가)
 local RagebotGroup = Tabs.Combat:AddLeftGroupbox('Ragebot')
 
 RagebotGroup:AddToggle('RagebotEnabled', {
@@ -500,6 +499,15 @@ RagebotGroup:AddToggle('RagebotEnabled', {
     Callback = function(Value)
         L555_61 = Value
         pcall(function() v71190(Value) end)
+    end
+}):AddKeyPicker('RagebotKeybind', {
+    Text = 'Ragebot', -- 키바인드 메뉴에 표시될 이름
+    Default = 'Z',         -- 초기 기본 단축키 (원하는 키로 변경 가능, 예: 'F', 'Q' 등)
+    NoUI = false,             -- false로 설정해야 아까 만든 Keybind Menu에 목록으로 표시됨
+    
+    -- 단축키를 눌렀을 때 토글 상태를 바꿔주는 콜백
+    Callback = function(Value)
+        -- 필요시 추가 동작 작성
     end
 })
 
