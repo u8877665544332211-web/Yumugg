@@ -86,7 +86,7 @@ getgenv().Config = getgenv().Config or {}
 getgenv().State = getgenv().State or {}
 
 local Window = Library:CreateWindow({
-    Title = 'Yumu Enchantment - discord.gg/qTV5c5Fn6',
+    Title = 'Yumu Enchantment - Rivals',
     Center = true,
     AutoShow = true,
     TabPadding = 8,
