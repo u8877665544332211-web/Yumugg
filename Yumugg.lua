@@ -98,7 +98,7 @@ local _lII0ll    = false
 local _4012x732  = 0.25
 local a85b57c99  = 0.1
 local L555_61    = false
-local __lhiRNgvZ = 0.5
+local __lhiRNgvZ = 2
 local a73b35c96  = nil
 
 local L389_46    = nil
