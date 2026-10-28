@@ -3369,6 +3369,162 @@ LocalPlayer.CharacterAdded:Connect(function(newCharacter)
 end)
 
 -- ==========================================
+-- Kill Sound 로직 및 LinoriaLib 그룹박스 통합
+-- ==========================================
+local KillSoundConfig = {
+    Enable = false,
+    RemoveDefaultSound = false,
+    Volume = 3,
+    Pitch = 1,
+    Selected = "rust hs",
+}
+
+local KillSoundLibrary = {
+    ["windows xp"]                  = "rbxassetid://108009100115241",
+    ["minecraft bow"]               = "rbxassetid://3442683707",
+    ["neverlose"]                   = "rbxassetid://97643101798871",
+    ["steve"]                       = "rbxassetid://132883456216684",
+    ["among us"]                    = "rbxassetid://93866204681438",
+    ["bonk"]                        = "rbxassetid://5766898159",
+    ["rust"]                        = "rbxassetid://1255040462",
+    ["fatality"]                    = "rbxassetid://6534947869",
+    ["hitmarker"]                   = "rbxassetid://133749572213659",
+    ["csgo"]                        = "rbxassetid://5764885315",
+    ["minecraft success bow hit"]   = "rbxassetid://131197435969853",
+    ["sparkle"]                     = "rbxassetid://110241936966089",
+    ["rust hs"]                     = "rbxassetid://4764109000",
+    ["windows 10 error"]            = "rbxassetid://5914602124",
+    ["Mambo"]                       = "rbxassetid://119974879573475",
+    ["no sound"]                    = "rbxassetid://139836625302855",
+    ["TF2 Headshot"]                = "rbxassetid://8255306220",
+    ["windows 11 error"]            = "rbxassetid://8499261098",
+    ["Unnamed"]                     = "rbxassetid://91141649267048",
+}
+
+local KillSoundKeys = {}
+for k in pairs(KillSoundLibrary) do
+    KillSoundKeys[#KillSoundKeys + 1] = k
+end
+table.sort(KillSoundKeys)
+
+-- 킬 사운드 재생 함수
+local function playKillSound()
+    if not KillSoundConfig.Enable then return end
+    local soundId = KillSoundLibrary[KillSoundConfig.Selected]
+    if not soundId or KillSoundConfig.Selected == "no sound" then return end
+
+    local sound = Instance.new("Sound")
+    sound.SoundId = soundId
+    sound.Volume = KillSoundConfig.Volume
+    sound.PlaybackSpeed = KillSoundConfig.Pitch
+    sound.Parent = SoundService
+    pcall(function() sound:Play() end)
+    Debris:AddItem(sound, 5)
+end
+
+-- 킬 감지 (Humanoid.Died 연결)
+local killConnections = {}
+
+local function setupKillDetection(targetPlayer)
+    if targetPlayer == LocalPlayer then return end
+
+    -- 기존 연결 정리
+    if killConnections[targetPlayer] then
+        pcall(function() killConnections[targetPlayer]:Disconnect() end)
+        killConnections[targetPlayer] = nil
+    end
+
+    local character = targetPlayer.Character
+    if not character then return end
+
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    killConnections[targetPlayer] = humanoid.Died:Connect(function()
+        -- 사망 시점의 킬러 확인
+        task.defer(function()
+            local killer = humanoid:GetAttribute("Killer")
+            if not killer then
+                pcall(function()
+                    local lastAttacker = humanoid:GetAttribute("LastAttacker")
+                    if lastAttacker then killer = lastAttacker end
+                end)
+            end
+            if killer == LocalPlayer or killer == LocalPlayer.Name then
+                playKillSound()
+            end
+        end)
+    end)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        setupKillDetection(player)
+        player.CharacterAdded:Connect(function()
+            task.wait(1)
+            setupKillDetection(player)
+        end)
+    end
+end
+
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        task.wait(1)
+        setupKillDetection(player)
+    end)
+end)
+
+-- Misc 탭 내에 Kill Sound 그룹박스 추가
+local KillSoundGroup = Tabs.Visuals:AddRightGroupbox('Kill Sound')
+
+KillSoundGroup:AddToggle('KillSoundEnable', {
+    Text = 'Enable',
+    Default = KillSoundConfig.Enable,
+    Callback = function(Value)
+        KillSoundConfig.Enable = Value
+    end
+})
+
+KillSoundGroup:AddDropdown('KillSoundDropdown', {
+    Values = KillSoundKeys,
+    Default = 13, -- 'rust hs' 기본 선택
+    Text = 'Sound Effect',
+    Callback = function(Value)
+        KillSoundConfig.Selected = Value
+    end
+})
+
+KillSoundGroup:AddSlider('KillSoundVolume', {
+    Text = 'Volume',
+    Default = KillSoundConfig.Volume,
+    Min = 0,
+    Max = 5,
+    Rounding = 1,
+    Callback = function(Value)
+        KillSoundConfig.Volume = Value
+    end
+})
+
+KillSoundGroup:AddSlider('KillSoundPitch', {
+    Text = 'Pitch',
+    Default = KillSoundConfig.Pitch,
+    Min = 0.5,
+    Max = 2,
+    Rounding = 2,
+    Callback = function(Value)
+        KillSoundConfig.Pitch = Value
+    end
+})
+
+KillSoundGroup:AddToggle('KillSoundRemoveDefault', {
+    Text = 'Remove Default Sound',
+    Default = KillSoundConfig.RemoveDefaultSound,
+    Callback = function(Value)
+        KillSoundConfig.RemoveDefaultSound = Value
+    end
+})
+
+-- ==========================================
 -- Setting 탭 (Config Manager & Theme Manager)
 -- ==========================================
 local SettingsMenu = Tabs.Setting:AddLeftGroupbox('Menu Settings')
