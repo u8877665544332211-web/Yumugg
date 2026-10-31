@@ -1,7 +1,7 @@
 -- ==========================================
 -- Services & Local Player 설정 (수정 부분)
 -- ==========================================
-local repo = 'https://raw.githubusercontent.com/spectrahook/linoria/refs/heads/main/'
+local repo = 'https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/'
 local Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
 local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))()
 local SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.lua'))()
