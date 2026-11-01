@@ -3525,6 +3525,100 @@ KillSoundGroup:AddToggle('KillSoundRemoveDefault', {
 })
 
 -- ==========================================
+-- Fast Melee (통합 완전체)
+-- ==========================================
+local FastMeleeGroup = Tabs.Combat:AddRightGroupbox('Fast Melee')
+
+-- 원본 값 백업 저장소 (OFF 시 복원용)
+local _fastMeleeOriginals = {}
+
+-- 활성화 시점에 원본 값 캡처
+local function _captureFastMeleeOriginals()
+    table.clear(_fastMeleeOriginals)
+    pcall(function()
+        for _, v in pairs(getgc(true)) do
+            if type(v) == "table" then
+                local snap = {}
+                local hasAny = false
+                for _, key in ipairs({"Cooldown", "AttackCooldown", "SwingCooldown", "HitCooldown", "Delay"}) do
+                    local ok, val = pcall(rawget, v, key)
+                    if ok and val ~= nil then
+                        snap[key] = val
+                        hasAny = true
+                    end
+                end
+                if hasAny then
+                    _fastMeleeOriginals[v] = snap
+                end
+            end
+        end
+    end)
+end
+
+-- 원본 값 복원
+local function _restoreFastMeleeOriginals()
+    pcall(function()
+        for tbl, snap in pairs(_fastMeleeOriginals) do
+            if type(tbl) == "table" then
+                for key, val in pairs(snap) do
+                    pcall(function() tbl[key] = val end)
+                end
+            end
+        end
+    end)
+    table.clear(_fastMeleeOriginals)
+end
+
+FastMeleeGroup:AddToggle('FastMeleeToggle', {
+    Text = 'Fast Melee',
+    Default = false,
+    Callback = function(Value)
+        getgenv().FastMeleeEnabled = Value
+        if Value then
+            _captureFastMeleeOriginals()
+        else
+            _restoreFastMeleeOriginals()
+        end
+    end
+})
+
+-- 메인 루프: 쿨다운 제로화 + 애니메이션 가속
+task.spawn(function()
+    while true do
+        task.wait(1.5)
+        if getgenv().FastMeleeEnabled then
+            pcall(function()
+                -- 1) GC 스캔: 무기 관련 쿨다운/딜레이 테이블을 0으로
+                for _, v in pairs(getgc(true)) do
+                    if type(v) == "table" then
+                        if rawget(v, "Cooldown") then v.Cooldown = 0 end
+                        if rawget(v, "AttackCooldown") then v.AttackCooldown = 0 end
+                        if rawget(v, "SwingCooldown") then v.SwingCooldown = 0 end
+                        if rawget(v, "HitCooldown") then v.HitCooldown = 0 end
+                        if rawget(v, "Delay") then v.Delay = 0 end
+                    end
+                end
+
+                -- 2) 현재 재생 중인 근접 애니메이션 속도 강제 8배
+                local char = Player.Character
+                if char then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        for _, track in pairs(hum:GetPlayingAnimationTracks()) do
+                            local animName = string.lower(track.Animation.AnimationId)
+                            if animName:find("sword") or animName:find("melee") or animName:find("knife")
+                                or animName:find("slash") or animName:find("punch") or animName:find("attack") then
+                                track:AdjustSpeed(8.0)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- ==========================================
 -- Setting 탭 (Config Manager & Theme Manager)
 -- ==========================================
 local SettingsMenu = Tabs.Setting:AddLeftGroupbox('Menu Settings')
