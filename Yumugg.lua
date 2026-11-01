@@ -3619,7 +3619,7 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- [Rivals 전용] 상대 위/아래 TP 그룹박스
+-- [Rivals 전용] 상대 위/아래 TP 그룹박스 (Ragebot 독립)
 -- RagebotGroup 정의 뒤에 붙여넣기
 -- ============================================================
 
@@ -3629,11 +3629,15 @@ local TPState = {
     Enabled = false,
     Mode = 'Above',
     Height = 3,
-    Delay = 0.08,      -- Rivals는 0.05보다 약간 높은 지연이 더 안정적
+    Delay = 0.08,
     TeamCheck = true,
+    MaxRange = 500,       -- 타겟 탐색 최대 거리 (studs)
 }
 
--- Rivals 팀 체크: TeamID 속성 기반 (기존 TeamCheck 모듈 재사용)
+-- ★ TP 전용 타겟 변수 (Ragebot과 독립)
+local TP_TargetPart = nil
+
+-- Rivals 팀 체크
 local function rivals_is_teammate(plr)
     if not TPState.TeamCheck then return false end
     if not plr or plr == LocalPlayer then return false end
@@ -3652,33 +3656,68 @@ local function rivals_get_root(char)
         or char:FindFirstChild("HumanoidRootPart")
 end
 
+-- ★ TP 전용 타겟 탐색 함수 (Ragebot과 무관하게 항상 실행)
+local function tp_find_target()
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
+
+    local myPos = myRoot.Position
+    local best, bestDist = nil, TPState.MaxRange
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            -- 팀원 스킵
+            if not rivals_is_teammate(player) then
+                -- 반사/면역 스킵
+                if not get_player_from_part(player) and not get_character(player) then
+                    local char = player.Character
+                    local hum = char:FindFirstChild("Humanoid")
+                    local root = char:FindFirstChild("HumanoidRootPart")
+                    if hum and hum.Health > 0 and root then
+                        local d = (myPos - root.Position).Magnitude
+                        if d < bestDist then
+                            bestDist = d
+                            best = char
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return best and rivals_get_root(best) or nil
+end
+
+-- ★ TP 타겟 갱신 스레드 (Ragebot과 독립적으로 항상 실행)
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        if TPState.Enabled then
+            TP_TargetPart = tp_find_target()
+        else
+            TP_TargetPart = nil
+        end
+    end
+end)
+
 -- 메인 TP 실행
 local function rivals_do_tp()
     if not TPState.Enabled then return end
 
-    -- Ragebot 타겟 참조 (a73b35c96은 기존 타겟 스레드에서 설정됨)
-    local targetPart = a73b35c96
+    -- ★ Ragebot 타겟 대신 TP 전용 타겟 사용
+    local targetPart = TP_TargetPart
     if not targetPart or not targetPart.Parent then return end
 
     local myChar = LocalPlayer.Character
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myRoot then return end
 
-    -- 대상 플레이어 확인
-    local targetModel = targetPart:FindFirstAncestorOfClass("Model") or targetPart.Parent
-    local targetPlr = Players:GetPlayerFromCharacter(targetModel)
-
-    -- Rivals 팀 체크
-    if rivals_is_teammate(targetPlr) then return end
-    -- 반사 상태 스킵
-    if targetPlr and get_player_from_part(targetPlr) then return end
-
-    -- 위치 계산: 위 또는 아래
+    -- 위치 계산
     local basePos = targetPart.Position
     local offsetY = (TPState.Mode == 'Above') and TPState.Height or -TPState.Height
     local goalPos = basePos + Vector3.new(0, offsetY, 0)
 
-    -- 이동 + 대상 바라보기
     myRoot.CFrame = CFrame.new(goalPos, basePos)
     myRoot.AssemblyLinearVelocity = Vector3.zero
     myRoot.AssemblyAngularVelocity = Vector3.zero
@@ -3703,7 +3742,7 @@ end)
 TPGroup:AddToggle('TPToggle', {
     Text = 'Enable TP',
     Default = false,
-    Tooltip = 'Ragebot 타겟의 위/아래로 반복 텔레포트',
+    Tooltip = 'Ragebot 없이도 가장 가까운 적 위/아래로 텔레포트',
     Callback = function(Value)
         TPState.Enabled = Value
     end
@@ -3751,6 +3790,18 @@ TPGroup:AddSlider('TPDelay', {
     end
 })
 
+TPGroup:AddSlider('TPRange', {
+    Text = 'Max Range',
+    Default = 500,
+    Min = 20,
+    Max = 2000,
+    Rounding = 0,
+    Suffix = ' studs',
+    Callback = function(Value)
+        TPState.MaxRange = Value
+    end
+})
+
 TPGroup:AddToggle('TPTeamCheck', {
     Text = 'Ignore Teammates',
     Default = true,
@@ -3762,6 +3813,8 @@ TPGroup:AddToggle('TPTeamCheck', {
 TPGroup:AddButton({
     Text = 'TP Once (Manual)',
     Func = function()
+        -- 수동 실행 시 즉시 타겟 재탐색
+        TP_TargetPart = tp_find_target()
         pcall(rivals_do_tp)
     end
 })
