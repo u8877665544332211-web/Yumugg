@@ -3619,133 +3619,150 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- [추가] 상대방 위/아래 TP 그룹박스
--- RagebotGroup 정의 이후에 붙여넣기
+-- [Rivals 전용] 상대 위/아래 TP 그룹박스
+-- RagebotGroup 정의 뒤에 붙여넣기
 -- ============================================================
 
-local TeleportGroup = Tabs.Combat:AddRightGroupbox('Teleport (Above / Below)')
+local TPGroup = Tabs.Combat:AddRightGroupbox('TP (Above / Below)')
 
--- TP 설정 상태
-local TPConfig = {
-    Enabled   = false,   -- TP 기능 on/off
-    Mode      = 'Above', -- 'Above' / 'Below'
-    Height    = 3,       -- 타겟 기준 높이 오프셋
-    Delay     = 0.05,    -- TP 반복 주기
-    TeamCheck = true,    -- 팀원 무시
-    Keybind   = nil,
+local TPState = {
+    Enabled = false,
+    Mode = 'Above',
+    Height = 3,
+    Delay = 0.08,      -- Rivals는 0.05보다 약간 높은 지연이 더 안정적
+    TeamCheck = true,
 }
 
--- 실제 TP 실행 함수
-local function do_teleport_to_target()
-    if not TPConfig.Enabled then return end
-    if not a73b35c96 or not a73b35c96.Parent then return end
+-- Rivals 팀 체크: TeamID 속성 기반 (기존 TeamCheck 모듈 재사용)
+local function rivals_is_teammate(plr)
+    if not TPState.TeamCheck then return false end
+    if not plr or plr == LocalPlayer then return false end
+    local a = LocalPlayer:GetAttribute("TeamID")
+    local b = plr:GetAttribute("TeamID")
+    if a == nil or b == nil then return false end
+    return a == b
+end
 
-    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+-- Rivals 대상 캐릭터 루트 획득 (HitboxHead 우선)
+local function rivals_get_root(char)
+    if not char then return nil end
+    return char:FindFirstChild("HitboxHead")
+        or char:FindFirstChild("HitboxHeadSmall")
+        or char:FindFirstChild("Head")
+        or char:FindFirstChild("HumanoidRootPart")
+end
 
-    local model = a73b35c96:FindFirstAncestorOfClass("Model") or a73b35c96.Parent
-    local plr   = Players:GetPlayerFromCharacter(model)
+-- 메인 TP 실행
+local function rivals_do_tp()
+    if not TPState.Enabled then return end
 
-    -- 팀원 체크
-    if TPConfig.TeamCheck and plr and TeamCheck.IsTeammate(plr) then return end
+    -- Ragebot 타겟 참조 (a73b35c96은 기존 타겟 스레드에서 설정됨)
+    local targetPart = a73b35c96
+    if not targetPart or not targetPart.Parent then return end
+
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+
+    -- 대상 플레이어 확인
+    local targetModel = targetPart:FindFirstAncestorOfClass("Model") or targetPart.Parent
+    local targetPlr = Players:GetPlayerFromCharacter(targetModel)
+
+    -- Rivals 팀 체크
+    if rivals_is_teammate(targetPlr) then return end
     -- 반사 상태 스킵
-    if plr and TeamCheck.IsReflecting(plr) then return end
+    if targetPlr and get_player_from_part(targetPlr) then return end
 
-    local tPos = a73b35c96.Position
-    local offsetY = (TPConfig.Mode == 'Above') and TPConfig.Height or -TPConfig.Height
-    local goal = tPos + Vector3.new(0, offsetY, 0)
+    -- 위치 계산: 위 또는 아래
+    local basePos = targetPart.Position
+    local offsetY = (TPState.Mode == 'Above') and TPState.Height or -TPState.Height
+    local goalPos = basePos + Vector3.new(0, offsetY, 0)
 
-    -- 타겟을 바라보도록 CFrame 설정
-    hrp.CFrame = CFrame.new(goal, tPos)
-    hrp.AssemblyLinearVelocity = Vector3.zero
-    hrp.AssemblyAngularVelocity = Vector3.zero
+    -- 이동 + 대상 바라보기
+    myRoot.CFrame = CFrame.new(goalPos, basePos)
+    myRoot.AssemblyLinearVelocity = Vector3.zero
+    myRoot.AssemblyAngularVelocity = Vector3.zero
 end
 
 -- TP 반복 루프
 task.spawn(function()
     while true do
-        if TPConfig.Enabled then
-            pcall(do_teleport_to_target)
-            task.wait(TPConfig.Delay)
+        if TPState.Enabled then
+            pcall(rivals_do_tp)
+            task.wait(TPState.Delay)
         else
-            task.wait(0.1)
+            task.wait(0.15)
         end
     end
 end)
 
--- ──────────────────────────────────────────────
--- UI 구성
--- ──────────────────────────────────────────────
+-- ============================================================
+-- UI
+-- ============================================================
 
--- 1) TP 활성화 토글 + 키바인드
-TeleportGroup:AddToggle('TPToggle', {
-    Text = 'Enable Teleport',
+TPGroup:AddToggle('TPToggle', {
+    Text = 'Enable TP',
     Default = false,
-    Tooltip = '타겟의 위/아래로 반복 텔레포트합니다.',
+    Tooltip = 'Ragebot 타겟의 위/아래로 반복 텔레포트',
     Callback = function(Value)
-        TPConfig.Enabled = Value
+        TPState.Enabled = Value
     end
-}):AddKeyPicker('TPToggleKeybind', {
+}):AddKeyPicker('TPKeybind', {
     Text = 'TP Toggle',
     Default = 'X',
     NoUI = false,
-    Callback = function(Value)
-        -- 키 입력 시 토글 상태 반전
+    Callback = function()
         if Toggles.TPToggle then
             Toggles.TPToggle:SetValue(not Toggles.TPToggle.Value)
         end
     end
 })
 
--- 2) 위치 모드 선택 (위 / 아래)
-TeleportGroup:AddDropdown('TPModeDropdown', {
+TPGroup:AddDropdown('TPMode', {
     Values = { 'Above', 'Below' },
     Default = 1,
-    Text = 'Position Mode',
+    Text = 'Position',
     Callback = function(Value)
-        TPConfig.Mode = Value
+        TPState.Mode = Value
     end
 })
 
--- 3) 높이 오프셋 슬라이더
-TeleportGroup:AddSlider('TPHeightSlider', {
+TPGroup:AddSlider('TPHeight', {
     Text = 'Height Offset',
     Default = 3,
     Min = 0.5,
-    Max = 15,
+    Max = 12,
     Rounding = 1,
     Suffix = ' studs',
     Callback = function(Value)
-        TPConfig.Height = Value
+        TPState.Height = Value
     end
 })
 
--- 4) 반복 주기 슬라이더
-TeleportGroup:AddSlider('TPDelaySlider', {
-    Text = 'TP Delay (sec)',
-    Default = 0.05,
-    Min = 0.01,
+TPGroup:AddSlider('TPDelay', {
+    Text = 'TP Delay',
+    Default = 0.08,
+    Min = 0.03,
     Max = 0.5,
     Rounding = 2,
+    Suffix = 's',
     Callback = function(Value)
-        TPConfig.Delay = Value
+        TPState.Delay = Value
     end
 })
 
--- 5) 팀원 무시 토글
-TeleportGroup:AddToggle('TPTeamCheckToggle', {
+TPGroup:AddToggle('TPTeamCheck', {
     Text = 'Ignore Teammates',
     Default = true,
     Callback = function(Value)
-        TPConfig.TeamCheck = Value
+        TPState.TeamCheck = Value
     end
 })
 
--- 6) 즉시 TP 버튼 (수동)
-TeleportGroup:AddButton({
-    Text = 'Teleport Now',
+TPGroup:AddButton({
+    Text = 'TP Once (Manual)',
     Func = function()
-        pcall(do_teleport_to_target)
+        pcall(rivals_do_tp)
     end
 })
 
