@@ -3618,6 +3618,137 @@ task.spawn(function()
     end
 end)
 
+-- ============================================================
+-- [추가] 상대방 위/아래 TP 그룹박스
+-- RagebotGroup 정의 이후에 붙여넣기
+-- ============================================================
+
+local TeleportGroup = Tabs.Combat:AddRightGroupbox('Teleport (Above / Below)')
+
+-- TP 설정 상태
+local TPConfig = {
+    Enabled   = false,   -- TP 기능 on/off
+    Mode      = 'Above', -- 'Above' / 'Below'
+    Height    = 3,       -- 타겟 기준 높이 오프셋
+    Delay     = 0.05,    -- TP 반복 주기
+    TeamCheck = true,    -- 팀원 무시
+    Keybind   = nil,
+}
+
+-- 실제 TP 실행 함수
+local function do_teleport_to_target()
+    if not TPConfig.Enabled then return end
+    if not a73b35c96 or not a73b35c96.Parent then return end
+
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local model = a73b35c96:FindFirstAncestorOfClass("Model") or a73b35c96.Parent
+    local plr   = Players:GetPlayerFromCharacter(model)
+
+    -- 팀원 체크
+    if TPConfig.TeamCheck and plr and TeamCheck.IsTeammate(plr) then return end
+    -- 반사 상태 스킵
+    if plr and TeamCheck.IsReflecting(plr) then return end
+
+    local tPos = a73b35c96.Position
+    local offsetY = (TPConfig.Mode == 'Above') and TPConfig.Height or -TPConfig.Height
+    local goal = tPos + Vector3.new(0, offsetY, 0)
+
+    -- 타겟을 바라보도록 CFrame 설정
+    hrp.CFrame = CFrame.new(goal, tPos)
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+end
+
+-- TP 반복 루프
+task.spawn(function()
+    while true do
+        if TPConfig.Enabled then
+            pcall(do_teleport_to_target)
+            task.wait(TPConfig.Delay)
+        else
+            task.wait(0.1)
+        end
+    end
+end)
+
+-- ──────────────────────────────────────────────
+-- UI 구성
+-- ──────────────────────────────────────────────
+
+-- 1) TP 활성화 토글 + 키바인드
+TeleportGroup:AddToggle('TPToggle', {
+    Text = 'Enable Teleport',
+    Default = false,
+    Tooltip = '타겟의 위/아래로 반복 텔레포트합니다.',
+    Callback = function(Value)
+        TPConfig.Enabled = Value
+    end
+}):AddKeyPicker('TPToggleKeybind', {
+    Text = 'TP Toggle',
+    Default = 'X',
+    NoUI = false,
+    Callback = function(Value)
+        -- 키 입력 시 토글 상태 반전
+        if Toggles.TPToggle then
+            Toggles.TPToggle:SetValue(not Toggles.TPToggle.Value)
+        end
+    end
+})
+
+-- 2) 위치 모드 선택 (위 / 아래)
+TeleportGroup:AddDropdown('TPModeDropdown', {
+    Values = { 'Above', 'Below' },
+    Default = 1,
+    Text = 'Position Mode',
+    Callback = function(Value)
+        TPConfig.Mode = Value
+    end
+})
+
+-- 3) 높이 오프셋 슬라이더
+TeleportGroup:AddSlider('TPHeightSlider', {
+    Text = 'Height Offset',
+    Default = 3,
+    Min = 0.5,
+    Max = 15,
+    Rounding = 1,
+    Suffix = ' studs',
+    Callback = function(Value)
+        TPConfig.Height = Value
+    end
+})
+
+-- 4) 반복 주기 슬라이더
+TeleportGroup:AddSlider('TPDelaySlider', {
+    Text = 'TP Delay (sec)',
+    Default = 0.05,
+    Min = 0.01,
+    Max = 0.5,
+    Rounding = 2,
+    Callback = function(Value)
+        TPConfig.Delay = Value
+    end
+})
+
+-- 5) 팀원 무시 토글
+TeleportGroup:AddToggle('TPTeamCheckToggle', {
+    Text = 'Ignore Teammates',
+    Default = true,
+    Callback = function(Value)
+        TPConfig.TeamCheck = Value
+    end
+})
+
+-- 6) 즉시 TP 버튼 (수동)
+TeleportGroup:AddButton({
+    Text = 'Teleport Now',
+    Func = function()
+        pcall(do_teleport_to_target)
+    end
+})
+
 -- ==========================================
 -- Setting 탭 (Config Manager & Theme Manager)
 -- ==========================================
